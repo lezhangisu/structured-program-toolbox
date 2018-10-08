@@ -129,10 +129,12 @@ public class LabelAnalyzer {
 		
 		Q subgraph = dag_no_break.forward(Common.toQ(label));
 		Q label_nodes = subgraph.nodesTaggedWithAll("isLabel");
+		
 		AtlasSet<Node> body = new AtlasHashSet<Node>();
 		AtlasSet<Node> exit = new AtlasHashSet<Node>();
 		if(label_nodes.eval().nodes().size() > 1) {
-			subgraph = subgraph.difference(dag_no_break.forward(label_nodes.difference(Common.toQ(label)))).union(label_nodes).induce(dag_no_break).retainEdges();	
+			Q sub_label_graph = dag_no_break.forward(label_nodes.difference(Common.toQ(label)));
+			subgraph = subgraph.difference(sub_label_graph).union(sub_label_graph.roots()).induce(dag_no_break).retainEdges();	
 		}
 		exit = subgraph.leaves().eval().nodes();
 		
