@@ -120,12 +120,19 @@ public class LabelAnalyzer {
 	
 	public static List<AtlasSet<Node>> getModule(Q cfg, Node label){
 //		Q cfg_leaves = cfg.leaves();
-		Q subgraph = cfg.forward(Common.toQ(label));
+		Q cfbe=cfg.edges(XCSG.ControlFlowBackEdge).retainEdges(); //Control flow back edge
+		Q dag=cfg.differenceEdges(cfbe).retainEdges(); // Control flow back edges removed
+		Q break_nodes = cfg.nodes(XCSG.Break);
+		Q break_edges = cfg.forwardStep(break_nodes).retainEdges();
+		
+		Q dag_no_break = dag.differenceEdges(break_edges).retainEdges();
+		
+		Q subgraph = dag_no_break.forward(Common.toQ(label));
 		Q label_nodes = subgraph.nodesTaggedWithAll("isLabel");
 		AtlasSet<Node> body = new AtlasHashSet<Node>();
 		AtlasSet<Node> exit = new AtlasHashSet<Node>();
 		if(label_nodes.eval().nodes().size() > 1) {
-			subgraph = subgraph.difference(cfg.forward(label_nodes.difference(Common.toQ(label)))).union(label_nodes).induce(cfg).retainEdges();	
+			subgraph = subgraph.difference(dag_no_break.forward(label_nodes.difference(Common.toQ(label)))).union(label_nodes).induce(dag_no_break).retainEdges();	
 		}
 		exit = subgraph.leaves().eval().nodes();
 		
@@ -136,7 +143,7 @@ public class LabelAnalyzer {
 			if(exit.contains(b)) {
 				continue;
 			}
-			AtlasSet<Node> pred = cfg.predecessors(Common.toQ(b)).eval().nodes();
+			AtlasSet<Node> pred = dag_no_break.predecessors(Common.toQ(b)).eval().nodes();
 			for(Node p : pred) {
 				if(!entry.contains(p)&&!subgraph.eval().nodes().contains(p)) {
 					entry.add(b);
