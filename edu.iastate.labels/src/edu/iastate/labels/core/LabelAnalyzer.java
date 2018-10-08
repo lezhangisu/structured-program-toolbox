@@ -192,7 +192,7 @@ public class LabelAnalyzer {
 		
 	}
 	
-	// edu.iastate.scode.labels.core.LabelAnalyzer.analyzeAll("file/path/*.txt")
+	// edu.iastate.labels.core.LabelAnalyzer.analyzeAll("file/path/*.txt")
 	public static void analyzeAll(String path) throws IOException {
 		analyzeAll(new File(path));
 	}
