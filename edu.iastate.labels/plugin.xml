@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.0"?>
+<plugin
+>
+   <extension
+         point="com.ensoftcorp.atlas.ui.smartViewScript">
+   	<script
+   		class = "edu.iastate.labels.viewer.Visualizer">
+   	</script>
+   </extension>
+</plugin>
