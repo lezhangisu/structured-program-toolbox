@@ -1,0 +1,13 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: Scode
+Bundle-SymbolicName: edu.iastate.scode;singleton:=true
+Bundle-Version: 1.0.0.qualifier
+Bundle-Activator: edu.iastate.scode.Activator
+Require-Bundle: org.eclipse.ui,
+ org.eclipse.core.runtime,
+ com.ensoftcorp.atlas.core;bundle-version="3.3.3",
+ com.ensoftcorp.open.c.commons;bundle-version="3.3.0",
+ com.ensoftcorp.open.pcg;bundle-version="3.3.0"
+Bundle-RequiredExecutionEnvironment: JavaSE-1.8
+Bundle-ActivationPolicy: lazy
