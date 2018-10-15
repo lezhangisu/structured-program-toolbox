@@ -155,12 +155,16 @@ public class LabelAnalyzer {
 		
 		Q subgraph = dag_no_break.forward(Common.toQ(label));
 		Q label_nodes = subgraph.nodesTaggedWithAll("isLabel");
+		Q control_nodes = subgraph.nodesTaggedWithAll(XCSG.ControlFlowCondition);
 		
 		AtlasSet<Node> body = new AtlasHashSet<Node>();
 		AtlasSet<Node> exit = new AtlasHashSet<Node>();
-		if(label_nodes.eval().nodes().size() > 1) {
+		if(label_nodes.eval().nodes().size() > 1 || control_nodes.eval().nodes().size() > 0) {
 			Q sub_label_graph = dag_no_break.forward(label_nodes.difference(Common.toQ(label)));
-			subgraph = subgraph.difference(sub_label_graph).union(sub_label_graph.roots()).induce(dag_no_break).retainEdges();	
+			Q sub_ctrl_graph = dag_no_break.forward(control_nodes);
+			Q sub_diff_graph = sub_label_graph.union(sub_ctrl_graph);
+			Log.info(label.getAttr(XCSG.name).toString() + sub_label_graph.eval().nodes().size() + "|" + sub_ctrl_graph.eval().nodes().size() + "|" + sub_diff_graph.eval().nodes().size());
+			subgraph = subgraph.difference(sub_diff_graph).union(sub_diff_graph.roots()).induce(dag_no_break).retainEdges();	
 		}
 		exit = subgraph.leaves().eval().nodes();
 		
