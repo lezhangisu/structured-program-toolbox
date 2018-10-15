@@ -68,6 +68,12 @@ public class LabelAnalyzer {
 	private static final String CFG_GRAPH_FILE_NAME_PATTERN = "%s-CFG@%s@%s@%s";
 	private static final String PCG_GRAPH_FILE_NAME_PATTERN = "%s-PCG@%s@%s@%s";
 	
+	public LabelAnalyzer()
+	{
+		this.graphsOutputDirectory = VerificationProperties.getGraphsOutputDirectory();
+		
+	}
+	
 	private static void saveDisplayCFG(Graph cfgGraph, int num, String sourceFile, String methodName, Markup markup, boolean displayGraphs) { 
         if(displayGraphs){
             DisplayUtil.displayGraph(markup, cfgGraph);
@@ -163,7 +169,7 @@ public class LabelAnalyzer {
 			Q sub_label_graph = dag_no_break.forward(label_nodes.difference(Common.toQ(label)));
 			Q sub_ctrl_graph = dag_no_break.forward(control_nodes);
 			Q sub_diff_graph = sub_label_graph.union(sub_ctrl_graph);
-			Log.info(label.getAttr(XCSG.name).toString() + sub_label_graph.eval().nodes().size() + "|" + sub_ctrl_graph.eval().nodes().size() + "|" + sub_diff_graph.eval().nodes().size());
+//			Log.info(label.getAttr(XCSG.name).toString() + sub_label_graph.eval().nodes().size() + "|" + sub_ctrl_graph.eval().nodes().size() + "|" + sub_diff_graph.eval().nodes().size());
 			subgraph = subgraph.difference(sub_diff_graph).union(sub_diff_graph.roots()).induce(dag_no_break).retainEdges();	
 		}
 		exit = subgraph.leaves().eval().nodes();
