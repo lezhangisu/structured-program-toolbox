@@ -3,20 +3,29 @@ package edu.iastate.labels.core;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.awt.Color;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 
+import com.ensoftcorp.atlas.core.db.graph.Graph;
 import com.ensoftcorp.atlas.core.db.graph.Node;
 import com.ensoftcorp.atlas.core.db.set.AtlasHashSet;
 import com.ensoftcorp.atlas.core.db.set.AtlasSet;
+import com.ensoftcorp.atlas.core.index.common.SourceCorrespondence;
+import com.ensoftcorp.atlas.core.markup.Markup;
+import com.ensoftcorp.atlas.core.markup.MarkupProperty;
 import com.ensoftcorp.atlas.core.query.Q;
 import com.ensoftcorp.atlas.core.script.Common;
 import com.ensoftcorp.atlas.core.script.CommonQueries;
 import com.ensoftcorp.atlas.core.xcsg.XCSG;
+import com.ensoftcorp.atlas.ui.viewer.graph.DisplayUtil;
+import com.ensoftcorp.atlas.ui.viewer.graph.SaveUtil;
+import edu.iastate.labels.core.VerificationProperties;
 
 import edu.iastate.labels.viewer.log.Log;
 
@@ -31,93 +40,110 @@ public class LabelAnalyzer {
 	private static Map<Node, List<AtlasSet<Node>>> map_subgraphs = new HashMap<Node, List<AtlasSet<Node>>>(); // format: <Node controlFlowCondition, List<Q entry, Q body, Q exit> >
 	private static Map<Node, Node> map_parent = new HashMap<Node, Node>(); // format: <ChildNode, ParentNode>
 
+	
 	/**
-	 * Given a file, create a CSV with names of all functions and whether or not
-	 * it is structured within the function
-	 *
-	 * Example Atlas Shell Usage:
-	 * edu.iastate.scode.sCodeChecker.parseAllFunctions("C:\Users\TA\Desktop\structured-list.csv")
-	 *
-	 * @param String path
-	 * @throws IOException
+	 * The name pattern for the directory containing the graphs for the processed goto.
+	 * <p>
+	 * 1- The {@link SourceCorrespondence}.
 	 */
-	public static void parseAllFunctions(String path) throws IOException {
-		parseAllFunctions(new File(path));
-	}
-
+	private static final String GOTO_GRAPH_DIRECTORY_NAME_PATTERN = "labelModule_graphs";
+	
 	/**
-	 * Given a file, create a CSV with names of all functions and whether or not
-	 * it is structured within the function
-	 *
-	 * Example Atlas Shell Usage:
-	 * edu.iastate.scode.sCodeChecker.parseAllFunctions(new java.io.File("C:\Users\TA\Desktop\structured-list.csv"))
-	 *
-	 * @param File filepath
-	 * @throws IOException
+	 * The directory where the verification graphs for the processed lock to be stored}.
 	 */
-	public static void parseAllFunctions(File file) throws IOException {
-		FileWriter writer = new FileWriter(file);
-		Q functions = Common.universe().nodesTaggedWithAny(XCSG.Function);
-		for(Node function: functions.eval().nodes()) {
-			Log.info("Processing " + function.getAttr(XCSG.name));
-
-			// parse the function
-			boolean result = fun_isStructured(Common.toQ(function));
-
-			writer.write(function.getAttr(XCSG.name) + "," + (result? "true":"false") + "\n");
-			Log.info("Done with " + function.getAttr(XCSG.name));
+	private static File currentgotoGraphsOutputDirectory;
+	
+	/**
+	 * The root output directory for all the graphs. The current class with create a directory with {@link #currentLockGraphsOutputDirectory}
+	 * to store all generated graph per processed lock.
+	 */
+	private Path graphsOutputDirectory;
+	
+	/**
+	 * The name pattern for the CFG graph.
+	 * <p>
+	 * The following is the parts of the name:
+	 * 1- The method name corresponding to the CFG.
+	 */
+	private static final String CFG_GRAPH_FILE_NAME_PATTERN = "%s-CFG@%s@%s@%s";
+	private static final String PCG_GRAPH_FILE_NAME_PATTERN = "%s-PCG@%s@%s@%s";
+	
+	private static void saveDisplayCFG(Graph cfgGraph, int num, String sourceFile, String methodName, Markup markup, boolean displayGraphs) { 
+        if(displayGraphs){
+            DisplayUtil.displayGraph(markup, cfgGraph);
+        }
+            
+        try{
+            String cfgFileName = String.format(CFG_GRAPH_FILE_NAME_PATTERN, num, sourceFile, methodName, VerificationProperties.getGraphImageFileNameExtension());
+            SaveUtil.saveGraph(new File(currentgotoGraphsOutputDirectory, cfgFileName), cfgGraph, markup).join();
+        } catch (InterruptedException e) {}
+            
+    }	
+	
+	private static void saveDisplayPCG(Graph pcgGraph, int num, String sourceFile, String methodName, Markup markup, boolean displayGraphs) { 
+        if(displayGraphs){
+            DisplayUtil.displayGraph(markup, pcgGraph);
+        }
+            
+        try{
+            String pcgFileName = String.format(PCG_GRAPH_FILE_NAME_PATTERN, num, sourceFile, methodName, VerificationProperties.getGraphImageFileNameExtension());
+            SaveUtil.saveGraph(new File(currentgotoGraphsOutputDirectory, pcgFileName), pcgGraph, markup).join();
+        } catch (InterruptedException e) {}
+            
+    }
+	
+	private void createDirectory(){
+        String containingDirectoryName = String.format(GOTO_GRAPH_DIRECTORY_NAME_PATTERN);
+        currentgotoGraphsOutputDirectory = this.graphsOutputDirectory.resolve(containingDirectoryName).toFile();
+        if(!currentgotoGraphsOutputDirectory.exists())
+        {
+        if(!currentgotoGraphsOutputDirectory.mkdirs()){
+            Log.info("Cannot create directory:" + currentgotoGraphsOutputDirectory.getAbsolutePath());
+        }
+        }
+    }
+	
+	private static Node getDeclarativeParent(Node node) {
+		AtlasSet<Node> parentNodes = Common.toQ(node).parent().eval().nodes();
+		if(parentNodes.size() > 1){
+			throw new IllegalArgumentException("Multiple declarative parents!");
 		}
-		// add Excel False counter in the last line
-		long count = functions.eval().nodes().size();
-		String formula = "=COUNTIF(B1:B" + count + ", \"\"FALSE\"\")";
-		writer.write(",\""+ formula +"\"\n");
-		writer.close();
-	}
-
-	/**
-	* Checks if a given function is structured
-	*
-	 * @param Q function
-	 * @return boolean
-	 */
-	public static boolean fun_isStructured(Q function) {
-		preprocess(function);
-		return parse();
-
-	}
-
-	/**
-	* Checks if a given function is structured
-	*
-	 * Example Atlas Shell Usage:
-	 * edu.iastate.scode.sCodeChecker.fun_isStructured("function_name")
-	 *
-	 * @param String fun
-	 * @return boolean
-	 */
-	public static boolean fun_isStructured(String fun) {
-		Q function = com.ensoftcorp.open.c.commons.analysis.CommonQueries.functions(fun);
-		preprocess(function);
-		return parse();
-
-	}
-
-	/**
-	* Goes through all the subgraphs to see if there are two entries in one subgraph
-	 * @param none
-	 * @return boolean
-	 */
-	public static boolean parse() {
-
-		for(Node current : map_subgraphs.keySet()) {
-			if(map_subgraphs.get(current).get(0).size()>1) {
-				// if more than one entry to a subgraph, return false
-				return false;
-			}
-		}
-		return true;
+		return parentNodes.one();
 	}
 	
+	public static String getQualifiedName(Node node, String...stopAfterTags) {
+		if(node == null){
+			throw new IllegalArgumentException("Node is null!");
+		}
+		String result = node.attr().get(XCSG.name).toString();
+		Node parent = getDeclarativeParent(node);
+		boolean qualified = false;
+		while (parent != null && !qualified) {
+			for(String stopAfterTag : stopAfterTags){
+				if(parent.taggedWith(stopAfterTag)){
+					qualified = true;
+				}
+			}
+			String prefix = parent.attr().get(XCSG.name).toString();
+			if(!prefix.equals("")){
+				result = parent.attr().get(XCSG.name) + "." + result;
+			}
+			parent = getDeclarativeParent(parent);
+		}
+		return result;
+	}
+	
+	public static String getQualifiedFunctionName(Node function) {
+		if(function == null){
+			throw new IllegalArgumentException("Function is null!");
+		}
+		if(!function.taggedWith(XCSG.Function)){
+			throw new IllegalArgumentException("Function parameter is not a function!");
+		}
+		return getQualifiedName(function, XCSG.Package);
+	}
+	
+
 	public static List<AtlasSet<Node>> getModule(Q cfg, Node label){
 //		Q cfg_leaves = cfg.leaves();
 		Q cfbe=cfg.edges(XCSG.ControlFlowBackEdge).retainEdges(); //Control flow back edge
@@ -214,6 +240,7 @@ public class LabelAnalyzer {
 			
 			AtlasSet<Node> label_set = cfg.nodesTaggedWithAll("isLabel").eval().nodes();
 			
+			int num = 0;
 			for(Node label : label_set) {
 				if(label.taggedWith(XCSG.Loop)) {
 					continue;
@@ -222,10 +249,21 @@ public class LabelAnalyzer {
 				
 				if(l.get(0).size() > 1) {
 					writer.write(function.getAttr(XCSG.name) + ", " + label.getAttr(XCSG.name) + " || " + l.get(0).size() + "\n");
+					// mark up
+					Markup markup = new Markup();
+					markup.set(Common.toQ(l.get(1)), MarkupProperty.NODE_BACKGROUND_COLOR, Color.YELLOW.darker());
+					markup.set(Common.toQ(l.get(2)), MarkupProperty.NODE_BACKGROUND_COLOR, Color.CYAN);
+					markup.set(Common.toQ(l.get(0)), MarkupProperty.NODE_BACKGROUND_COLOR, Color.MAGENTA);
+					
+					// set file name
+					String sourceFile = getQualifiedFunctionName(function);
+					String methodName =  function.getAttr(XCSG.name).toString();
+					
+					// output CFG
+					saveDisplayCFG(cfg.eval(), num, sourceFile, methodName, markup, false);
+					num++;
 				}
 			}
-			
-			
 			
 		}
 		
