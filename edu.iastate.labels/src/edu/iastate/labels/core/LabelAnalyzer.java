@@ -230,13 +230,15 @@ public class LabelAnalyzer {
 	}
 	
 	public static void analyzeAll(File file) throws IOException {
+		// get saving directory
+		new LabelAnalyzer().createDirectory();
 		// run DLI to tag all loops
 		com.ensoftcorp.open.jimple.commons.loops.DecompiledLoopIdentification.recoverLoops();
 		
 		//		get all functions with labels
 		AtlasSet<Node> function_w_label = Common.universe().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
 		
-		
+		int num = 0;
 		FileWriter writer = new FileWriter(file);
 		List<AtlasSet<Node>> l = new ArrayList<AtlasSet<Node>>();
 		for(Node function: function_w_label) {
@@ -244,7 +246,7 @@ public class LabelAnalyzer {
 			
 			AtlasSet<Node> label_set = cfg.nodesTaggedWithAll("isLabel").eval().nodes();
 			
-			int num = 0;
+			
 			for(Node label : label_set) {
 				if(label.taggedWith(XCSG.Loop)) {
 					continue;
