@@ -248,6 +248,9 @@ public class GraphAnalyzer {
 			
 			// get label nodes
 			Q labelNode = cfg.nodesTaggedWithAny("isLabel");
+			
+			// label stopping node
+			Q labelStopNode = labelNode.difference(cfg.nodesTaggedWithAny(XCSG.Loop));
 
 			// get the subgraph
 			subgraph_q =
@@ -258,10 +261,9 @@ public class GraphAnalyzer {
 					// exclude the part from false node to DAG leaves
 					difference(dag.between(falseNode, dag.leaves()).retainEdges()).
 					// exclude the part from label node to DAG leaves
-					difference(dag.between(labelNode, dag.leaves()).retainEdges()).
+					difference(dag.between(labelStopNode, dag.leaves()).retainEdges()).
 					// put back false node and false edge to make the subgraph complete
 					union(falseNode).union(falseEdge).union(labelNode).retainEdges();
-
 
 			// use induce(cfg) to add missing edges from CFG so we have complete subgraph
 			subgraph_q = subgraph_q.induce(cfg).retainEdges();
@@ -348,8 +350,8 @@ public class GraphAnalyzer {
 						.union(case_noncase_intersection.roots());
 			}
 			
-			// collect label node included
-			AtlasSet<Node> labelNodes = subgraph_q.nodesTaggedWithAny("isLabel").eval().nodes();
+			// collect label node but not loop label node included
+			AtlasSet<Node> labelNodes = subgraph_q.nodesTaggedWithAny("isLabel").difference(cfg.nodesTaggedWithAny(XCSG.Loop)).eval().nodes();
 			
 			// if there are label nodes, exclude those label paths
 			if(labelNodes.size() >0){
