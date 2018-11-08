@@ -14,6 +14,7 @@ import java.util.HashSet;
 
 import com.ensoftcorp.atlas.core.db.graph.Graph;
 import com.ensoftcorp.atlas.core.db.graph.Node;
+import com.ensoftcorp.atlas.core.db.graph.Edge;
 import com.ensoftcorp.atlas.core.db.set.AtlasHashSet;
 import com.ensoftcorp.atlas.core.db.set.AtlasSet;
 import com.ensoftcorp.atlas.core.index.common.SourceCorrespondence;
@@ -218,6 +219,18 @@ public class GraphAnalyzer {
 		AtlasSet<Node> entry = new AtlasHashSet<Node>();
 		entry.add(label);
 		
+		for(Node b : subgraph.eval().nodes()) {
+			if(exit.contains(b)) {
+				continue;
+			}
+			AtlasSet<Node> pred = cfg.predecessors(Common.toQ(b)).eval().nodes();
+			for(Node p : pred) {
+				if(!entry.contains(p)&&!subgraph.eval().nodes().contains(p)) {
+					entry.add(b);
+				}
+			}
+		}
+		
 		body = subgraph.retainNodes().difference(Common.toQ(exit)).difference(Common.toQ(entry)).eval().nodes();
 		
 		List<AtlasSet<Node>> l = new ArrayList<AtlasSet<Node>>();
@@ -227,9 +240,67 @@ public class GraphAnalyzer {
 		return l;
 	}
 	
-	public static List<AtlasSet<Node>> getBlock(Q cfg, Q cf_condition){
+	public static List<AtlasSet<Node>> getDoWhile(Q cfg, Node node){
 		Q cfbe=cfg.edges(XCSG.ControlFlowBackEdge).retainEdges(); //Control flow back edge
-
+		Q dag=cfg.differenceEdges(cfbe).retainEdges(); // Control flow back edges removed
+		
+		Q moduleLabels = cfg.nodesTaggedWithAny("isLabel").difference(cfg.nodesTaggedWithAny(XCSG.Loop));
+		
+		Q exitNode = null; // initialize the exit node
+		
+		
+		for(Edge e : cfbe.eval().edges()) { // for all control flow back edges, find the one with current entry node
+			if(cfg.successorsOn(Common.toQ(e)).eval().nodes().contains(node)) {
+				// if the CFBE contains the current entry node, the predecessor would be the corresponding do while node
+				// the next node on DAG would be the legal exit point
+				exitNode = dag.forwardStep(cfg.predecessorsOn(Common.toQ(e)).retainNodes());
+				break;
+			}
+		}
+		
+		List<AtlasSet<Node>> l = new ArrayList<AtlasSet<Node>>();
+		
+		if(exitNode == null) { // if no exit node is found, return empty list
+			return l;
+		}
+		
+		Q subgraph = dag.between(Common.toQ(node), dag.leaves())
+				.difference(dag.between(exitNode, dag.leaves()))
+				.difference(dag.between(moduleLabels, dag.leaves()))
+				.retainNodes().union(exitNode)
+				.induce(cfg).retainEdges();
+		
+		AtlasSet<Node> body = new AtlasHashSet<Node>();
+		AtlasSet<Node> exit = new AtlasHashSet<Node>();
+		
+		exit = subgraph.leaves().eval().nodes();
+		
+		AtlasSet<Node> entry = new AtlasHashSet<Node>();
+		entry.add(node);
+		
+		for(Node b : subgraph.eval().nodes()) {
+			if(exit.contains(b)) {
+				continue;
+			}
+			AtlasSet<Node> pred = cfg.predecessors(Common.toQ(b)).eval().nodes();
+			for(Node p : pred) {
+				if(!entry.contains(p)&&!subgraph.eval().nodes().contains(p)) {
+					entry.add(b);
+				}
+			}
+		}
+		
+		body = subgraph.retainNodes().difference(Common.toQ(exit)).difference(Common.toQ(entry)).eval().nodes();
+		
+		l.add(entry);
+		l.add(body);
+		l.add(exit);
+		return l;
+	}
+	
+	public static List<AtlasSet<Node>> getBlock(Q cfg, Node node){
+		Q cf_condition = Common.toQ(node);
+		Q cfbe=cfg.edges(XCSG.ControlFlowBackEdge).retainEdges(); //Control flow back edge
 		Q dag=cfg.differenceEdges(cfbe); // Control flow back edges removed
 
 		// Initialize the subgraph queries
@@ -431,38 +502,236 @@ public class GraphAnalyzer {
 		return return_list;
 	}
 	
+	/**
+	* Update parent map
+	 * @param Node parent, dag
+	 * @return none
+	 */
+	private static void updateParentMap(Node parent_node, Q dag) {  // input: graph root and graph list [entry, body, exit]
+
+		// get body nodes of this block
+		Q subgraph_body_q = Common.toQ(map_subgraphs.get(parent_node).get(1));
+
+		// update exits of nested nodes
+		for(Node child : subgraph_body_q.nodesTaggedWithAny("STRUCT_SELECTABLE").eval().nodes()) {
+			if(map_parent.containsKey(child)) {
+				Node prev_parent = map_parent.get(child);
+				// compare previous parent with current parent
+				// pick the smaller sized father to be the actual parent
+				if(getDistance(parent_node, child, dag) < getDistance(prev_parent, child, dag)) {
+
+					// if smaller, update parenthood
+					map_parent.put(child, parent_node);
+				}
+			}else {
+				// no record, just update value
+				map_parent.put(child, parent_node);
+			}
+		}
+	}
+	
+	/**
+	* Get shortest distance from node1 to node2 using BFS
+	 * @param node1, node2
+	 * @return int distance
+	 */
+	private static int getDistance(Node node1, Node node2, Q dag) {
+		AtlasSet<Node> current = new AtlasHashSet<Node>();
+		current.add(node1);
+		int steps = 0;
+		if(dag.forward(Common.toQ(node1)).eval().nodes().contains(node2)) {
+			Q partDag = dag.between(Common.toQ(node1), Common.toQ(node2));
+			int count = 0;
+			while(!current.isEmpty()) {
+				steps += 1;
+				AtlasSet<Node> tmp = new AtlasHashSet<Node>();
+				for(Node node : current) {
+					AtlasSet<Node> tmp_nxt = partDag.successors(Common.toQ(node)).eval().nodes();
+					if(tmp_nxt.contains(node2)) {
+						return steps;
+					}
+					tmp.addAll(tmp_nxt);
+				}
+				current.clear();
+				current.addAll(tmp);
+
+				count++;
+				if(count>1000) {
+					Log.info("GetDistance() exceeds max iterations 1000 at node " + node1.getAttr(XCSG.name) + " | and node | " + node2.getAttr(XCSG.name));
+					return steps;
+				}
+			}
+		}
+		return -1;
+	}
+	
+	/**
+	* Update child subgraph based on the parent's exits
+	 * @param Node child, Q dag, Q cfg
+	 * @return none
+	 */
+	private static void updateChildExits(int cnt, Node child, Q dag, Q cfg) {
+		Log.info("updateChildExits()" + child.getAttr(XCSG.name));
+		
+		//avoid deadlock
+		if(cnt == 0) {
+			Log.info("updateChildExits() exceeds max recursion");
+			return;
+		}
+
+		// cast to Q
+		Q cf_condition = Common.toQ(child);
+
+		// list [entry, subgraph, exits]
+		List<AtlasSet<Node>> subgraph = map_subgraphs.get(child);
+
+		// terminate subgraph based on exits of parent subgraph
+		// if it has a parent
+		if(map_parent.containsKey(child)) {
+
+			// get parent exits
+			AtlasSet<Node> parent_exits = map_subgraphs.get(map_parent.get(child)).get(2);
+			// get paths starting from parent's exits
+			Q extra_portion = dag.forward(Common.toQ(parent_exits)).retainNodes();
+
+			// get subgraph body nodes
+			// need to include entries because at this point some body nodes may be treated as entries
+			Q subgraph_body_q = Common.toQ(subgraph.get(1)).union(Common.toQ(subgraph.get(0)));
+
+//			AtlasSet<Node> body = subgraph_body_q.difference(extra_portion).eval().nodes();
+			
+			// if there is an intersection
+			if(extra_portion.intersection(subgraph_body_q).eval().nodes().size() > 0) {
+				
+				Log.info("update subgraph " + map_parent.get(child).getAttr(XCSG.name));
+
+				// update the subgraph body
+				AtlasSet<Node> body = new AtlasHashSet<Node>();
+
+				body.addAll(subgraph.get(1));
+				body = Common.toQ(body).difference(extra_portion).eval().nodes();
+
+				subgraph.set(1, body);
+
+				// update exits
+				AtlasSet<Node> exit = Common.toQ(subgraph.get(1)).union(cf_condition).union(Common.toQ(parent_exits)).induce(cfg).retainEdges().leaves().eval().nodes();
+
+				subgraph.set(2, exit);
+
+				// update the entries
+				AtlasSet<Node> entry = new AtlasHashSet<Node>();
+				// pick up entry nodes
+				AtlasSet<Node> subgraph_body_set = Common.toQ(subgraph.get(1)).union(cf_condition).eval().nodes();
+				for(Node n : subgraph_body_set) {
+					for(Node ent : cfg.predecessors(Common.toQ(n)).eval().nodes()) {
+						if(!subgraph_body_set.contains(ent)) {
+							entry.add(n);
+						}
+					}
+				}
+				subgraph.set(0, entry);
+
+				// update new subgraph
+				map_subgraphs.put(child, subgraph);
+
+				AtlasSet<Node> its_children = Common.toQ(subgraph.get(1)).nodesTaggedWithAny("STRUCT_SELECTABLE").eval().nodes();
+				
+				Log.info("child size " + its_children.size());
+				if(its_children.size()>0) {
+					for(Node forward_child : its_children) {
+						Log.info("Parent:: " + child.getAttr(XCSG.name) + " ||Child:: " + forward_child.getAttr(XCSG.name));
+						updateChildExits(cnt--, forward_child, dag, cfg);
+					}
+				}
+			}
+		}
+	}
+	
+	/**
+	* Analyze the given CFG and parse out the code blocks
+	 * @param Q cfg
+	 * @return none
+	 */
 	public static void analyze(Q cfg) {
 		//1. get selectable nodes (DLI loop entry, control nodes, labels) and tag them
 		
 		// run DLI
 		com.ensoftcorp.open.jimple.commons.loops.DecompiledLoopIdentification.recoverLoops();
-		// initialize a set with label nodes
+
+		// initialize a set with label nodes, DLI loop entry nodes, control statement nodes
 		AtlasSet<Node> selectable = cfg.nodesTaggedWithAny("isLabel", XCSG.Loop, XCSG.ControlFlowCondition).eval().nodes();
-		// add DLI loop entry nodes
-//		selectable.addAll(cfg.nodesTaggedWithAll(XCSG.Loop).eval().nodes());
-//		// add control nodes
-//		selectable.addAll(cfg.nodesTaggedWithAll(XCSG.ControlFlowCondition).eval().nodes());
-		// tag selected nodes
+
+		// tag selectable nodes
 		for(Node s : selectable) {
 			s.tag("STRUCT_SELECTABLE");
 		}
 		
 		//2. for each selectable node, get block or module, store them in map
+		Q cfbe=cfg.edges(XCSG.ControlFlowBackEdge).retainEdges(); //Control flow back edge
+		Q dag=cfg.differenceEdges(cfbe); // Control flow back edges removed
+		
 		for(Node node : selectable) {
-			if(node.taggedWith("isLabel")&&!node.taggedWith(XCSG.Loop)) {
+			if(node.taggedWith("isLabel")&&!node.taggedWith(XCSG.Loop)) { // straight forward label
 //				Log.info(node.getAttr(XCSG.name) + " getModule");
 				map_subgraphs.put(node, getModule(cfg, node));
-			}else if(node.taggedWith("isLabel")&&node.taggedWith(XCSG.Loop)) {
+			}else if(node.taggedWith("isLabel")&&node.taggedWith(XCSG.Loop)) { // label creates loop
 				map_subgraphs.put(node, getLabelLoop(cfg, node));
-			}else {
+			}else if(node.taggedWith("isDoWhileLoop")) {  // do while loop
+				map_subgraphs.put(node, getDoWhile(cfg, node));
+			}else { // normal IF/While/For/Switch
 //				Log.info(node.getAttr(XCSG.name) + " getBlock");
-				map_subgraphs.put(node, getBlock(cfg, Common.toQ(node)));
+				map_subgraphs.put(node, getBlock(cfg, node));
 			}
+			//for each module or block, update parent relationships 
+			updateParentMap(node, dag);
 		}
 		
-		//3. for each nested module or block, update exit point
+		//3. for each nested module or block, update exit points based on parents' exit points
+		// start with nodes with no parents (ancestor nodes)
+		Set<Node> no_parents = new HashSet<Node>();
+		Set<Node> previous_no_parents = new HashSet<Node>();
 		
-		
+		// initialize node set with node has no parents (find out ancestor nodes)
+		no_parents.addAll(map_subgraphs.keySet()); // add all selectable nodes
+		no_parents.removeAll(map_parent.keySet()); // remove nodes that have parents
+
+		// update all nested subgraphs
+		// while set of no parent subgraphs changes
+		int count = 0;
+		while(count<100 && !(previous_no_parents.size() == no_parents.size() && previous_no_parents.containsAll(no_parents))) {
+			// for each subgraph with no parent
+			for(Node node : no_parents) {
+				// get children
+				AtlasSet<Node> children = Common.toQ(map_subgraphs.get(node).get(1)).nodesTaggedWithAny("STRUCT_SELECTABLE").eval().nodes();
+
+				// if no child, skip
+				if(children.size() < 1) {
+					continue;
+				}
+
+				// update child subgraph
+				for(Node child : children) {
+					updateChildExits(100, child, dag, cfg); //update child max 100 iterations
+				}
+
+			}
+
+			// update parenthood map
+			map_parent.clear();
+			for(Node node : map_subgraphs.keySet()) {
+				// map_parent is updated in function updateParent()
+				updateParentMap(node, dag);
+			}
+
+			// update the two sets for comparison
+			previous_no_parents.clear();
+			previous_no_parents.addAll(no_parents);
+			no_parents.clear();
+			no_parents.addAll(map_subgraphs.keySet());
+			no_parents.removeAll(map_parent.keySet());
+
+			count++;
+		}
 	}
 	
 	public static Map<Node, List<AtlasSet<Node>>> getMap(){

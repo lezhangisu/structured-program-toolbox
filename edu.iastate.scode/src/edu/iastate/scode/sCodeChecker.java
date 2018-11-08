@@ -140,8 +140,10 @@ public class sCodeChecker {
 		for(Node node : cfg.nodesTaggedWithAny(XCSG.ControlFlowCondition).eval().nodes()) {
 			// get subgraph information
 			List<AtlasSet<Node>> list = getSubgraph(Common.toQ(node), cfg);
+			
 			// update subgraph list
 			map_subgraphs.put(node, list);
+			
 			// update parenthood map
 			updateParentMap(node, dag);
 
@@ -156,8 +158,10 @@ public class sCodeChecker {
 		// start with nodes with no parents
 		Set<Node> no_parents = new HashSet<Node>();
 		Set<Node> previous_no_parents = new HashSet<Node>();
-		no_parents.addAll(map_subgraphs.keySet());
-		no_parents.removeAll(map_parent.keySet());
+		
+		// initialize node set with node has no parents (find out ancestor nodes)
+		no_parents.addAll(map_subgraphs.keySet()); // add all selectable nodes
+		no_parents.removeAll(map_parent.keySet()); // remove nodes that have parents
 
 		// update all nested subgraphs
 		// while set of no parent subgraphs changes
@@ -273,9 +277,9 @@ public class sCodeChecker {
 	 * @param Node child, Q dag, Q cfg
 	 * @return none
 	 */
-	private static void updateChildExits(int loop, Node child, Q dag, Q cfg) {
+	private static void updateChildExits(int cnt, Node child, Q dag, Q cfg) {
 		//avoid deadlock
-		if(loop == 0) {
+		if(cnt == 0) {
 			Log.info("updateExits() exceeds max recursion");
 			return;
 		}
@@ -353,7 +357,7 @@ public class sCodeChecker {
 				if(its_children.size()>0) {
 					for(Node forward_child : its_children) {
 						Log.info("Parent:: " + child.getAttr(XCSG.name) + " ||Child:: " + forward_child.getAttr(XCSG.name));
-						updateChildExits(loop--, forward_child, dag, cfg);
+						updateChildExits(cnt--, forward_child, dag, cfg);
 					}
 				}
 				//================
