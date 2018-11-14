@@ -584,6 +584,8 @@ public class GraphAnalyzer {
 
 		// list [entry, subgraph, exits]
 		List<AtlasSet<Node>> subgraph = map_subgraphs.get(child);
+		
+		AtlasSet<Node> oldSelectableNodes = Common.toQ(subgraph.get(1)).nodesTaggedWithAny("STRUCT_SELECTABLE").eval().nodes();
 
 		// terminate subgraph based on exits of parent subgraph
 		// if it has a parent
@@ -636,6 +638,13 @@ public class GraphAnalyzer {
 
 				AtlasSet<Node> its_children = Common.toQ(subgraph.get(1)).nodesTaggedWithAny("STRUCT_SELECTABLE").eval().nodes();
 				
+				for(Node n : oldSelectableNodes) {
+					if(its_children.contains(n)) {
+						continue;
+					}
+					updateParent(n);
+				}
+				
 				Log.info("child size " + its_children.size());
 				if(its_children.size()>0) {
 					for(Node forward_child : its_children) {
@@ -645,6 +654,36 @@ public class GraphAnalyzer {
 				}
 			}
 		}
+	}
+	
+	/**
+	* Update parent map when child need a new parent
+	 * @param Node child
+	 * @return none
+	 */
+	private static void updateParent(Node child) {
+		// We assume that this child need a new parent
+		Node parent = map_parent.get(child);
+		if(!map_parent.containsKey(parent)) { // if no grand parents
+			map_parent.remove(child); // remove this child, it now has no parents
+			return;
+		}
+		
+		boolean flag = false;
+		while(map_parent.containsKey(parent)) {
+			parent = map_parent.get(parent);
+			
+			if(map_subgraphs.get(parent).get(1).contains(child)) {
+				map_parent.put(child, parent);
+				flag = true;
+				return;
+			}
+		}
+		
+		if(!flag) {
+			map_parent.remove(child);
+		}
+		
 	}
 	
 	/**
@@ -774,7 +813,7 @@ public class GraphAnalyzer {
 //		
 //	}
 //	
-	// edu.iastate.labels.core.LabelAnalyzer.analyzeAll("file/path/*.txt")
+	// edu.iastate.structured.core.GraphAnalyzer.analyzeAll("file/path/*.txt")
 	public static void analyzeAll(String path) throws IOException {
 		analyzeAll(new File(path));
 	}
@@ -783,25 +822,24 @@ public class GraphAnalyzer {
 		// get saving directory
 		new GraphAnalyzer().createDirectory();
 		// run DLI to tag all loops
-		com.ensoftcorp.open.jimple.commons.loops.DecompiledLoopIdentification.recoverLoops();
+//		com.ensoftcorp.open.jimple.commons.loops.DecompiledLoopIdentification.recoverLoops();
 		
 		//		get all functions with labels
 		AtlasSet<Node> function_w_label = Common.universe().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
 		
 		int num = 0;
 		FileWriter writer = new FileWriter(file);
-		List<AtlasSet<Node>> l = new ArrayList<AtlasSet<Node>>();
 		for(Node function: function_w_label) {
 			Q cfg = CommonQueries.cfg(Common.toQ(function));
 			
-			AtlasSet<Node> label_set = cfg.nodesTaggedWithAll("isLabel").eval().nodes();
+			
+			map_subgraphs.clear();
+			map_parent.clear();
+			analyze(cfg);
 			
 			
-			for(Node label : label_set) {
-				if(label.taggedWith(XCSG.Loop)) {
-					continue;
-				}
-				l = getModule(CommonQueries.cfg(Common.toQ(function)), label);
+			for(Node label : map_subgraphs.keySet()) {
+				List<AtlasSet<Node>> l = map_subgraphs.get(label);
 				
 				if(l.get(0).size() > 1) {
 					writer.write(function.getAttr(XCSG.name) + ", " + label.getAttr(XCSG.name) + " || " + l.get(0).size() + "\n");
