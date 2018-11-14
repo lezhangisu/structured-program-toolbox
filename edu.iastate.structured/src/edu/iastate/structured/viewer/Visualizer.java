@@ -127,6 +127,6 @@ public class Visualizer extends FilteringAtlasSmartViewScript {
 
 	@Override
 	public String getTitle() {
-		return "Structured Code View";
+		return "Structured Code View - Control Blocks";
 	}
 }
