@@ -670,7 +670,8 @@ public class GraphAnalyzer {
 		}
 		
 		boolean flag = false;
-		while(map_parent.containsKey(parent)) {
+		int cnt = 0;
+		while(map_parent.containsKey(parent) && cnt<100) {
 			parent = map_parent.get(parent);
 			
 			if(map_subgraphs.get(parent).get(1).contains(child)) {
@@ -678,6 +679,7 @@ public class GraphAnalyzer {
 				flag = true;
 				return;
 			}
+			cnt++;
 		}
 		
 		if(!flag) {
