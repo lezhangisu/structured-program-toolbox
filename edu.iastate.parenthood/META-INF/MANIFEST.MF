@@ -1,0 +1,15 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: parenthood
+Bundle-SymbolicName: edu.iastate.parenthood;singleton:=true
+Bundle-Version: 1.0.0.qualifier
+Bundle-RequiredExecutionEnvironment: JavaSE-1.8
+Require-Bundle: com.ensoftcorp.atlas.core;bundle-version="3.3.3",
+ com.ensoftcorp.atlas.ui;bundle-version="3.3.3",
+ com.ensoftcorp.atlas.java.core;bundle-version="3.3.3",
+ com.ensoftcorp.open.c.commons,
+ org.eclipse.core.runtime;bundle-version="3.13.0",
+ org.eclipse.ui;bundle-version="3.109.0",
+ com.ensoftcorp.open.jimple.commons;bundle-version="3.3.7"
+Bundle-Activator: edu.iastate.parenthood.Activator
+Bundle-ActivationPolicy: lazy
