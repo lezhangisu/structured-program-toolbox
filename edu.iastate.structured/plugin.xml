@@ -2,10 +2,8 @@
 <?eclipse version="3.0"?>
 <plugin
 >
-   <extension
-         point="com.ensoftcorp.atlas.ui.smartViewScript">
-   	<script
-   		class = "edu.iastate.structured.viewer.Visualizer">
-   	</script>
+   <extension point="com.ensoftcorp.atlas.ui.smartViewScript">
+   	<script class= "edu.iastate.structured.viewer.StructuredSmartView"/>
+   	<script class= "edu.iastate.structured.viewer.StructuredParenthoodSmartView"/>
    </extension>
 </plugin>
