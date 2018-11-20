@@ -29,6 +29,7 @@ import edu.iastate.structured.log.Log;
  * the start of the loop is highlighted in blue.
  */
 public class StructuredParenthoodSmartView extends FilteringAtlasSmartViewScript {
+	private Node prevFun = null;
 	@Override
 	public String[] getSupportedNodeTags() { // Event Trigger
 		return new String[]{XCSG.Function, XCSG.ControlFlow_Node};
@@ -45,6 +46,13 @@ public class StructuredParenthoodSmartView extends FilteringAtlasSmartViewScript
 		Q cf_nodes = filteredSelection.nodes(XCSG.ControlFlow_Node);
 		
 		if(!functions.eval().nodes().isEmpty()) {
+			
+			if(prevFun!= null && prevFun == functions.eval().nodes().one()) {
+				Log.info("Re-Selected " + functions.eval().nodes().one().getAttr(XCSG.name));
+				return null;
+			}
+			prevFun = functions.eval().nodes().one();
+			
 			Log.info("Function selected");
 			Q cfg = CommonQueries.cfg(functions);
 			

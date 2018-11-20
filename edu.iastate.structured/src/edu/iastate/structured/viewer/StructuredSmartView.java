@@ -33,6 +33,7 @@ public class StructuredSmartView extends FilteringAtlasSmartViewScript {
 //	private Map<Node, Node> map_parent = new HashMap<Node, Node>(); // format: <ChildNode, ParentNode>
 //	private Node previous_function = null;
 	private AtlasSet<Node> selectable = new AtlasHashSet<Node>();
+	private Node prevFun = null;
 	
 	@Override
 	public String[] getSupportedNodeTags() { // Event Trigger
@@ -55,6 +56,11 @@ public class StructuredSmartView extends FilteringAtlasSmartViewScript {
 		Q cfg = Common.empty();
 		
 		if(!function.eval().nodes().isEmpty()) {
+			if(prevFun!= null && prevFun == function.eval().nodes().one()) {
+				Log.info("Re-Selected " + function.eval().nodes().one().getAttr(XCSG.name));
+				return null;
+			}
+			prevFun = function.eval().nodes().one();
 			// if no function, return original graph
 			Log.info("Function " + function.eval().nodes().one().getAttr(XCSG.name) + " Selected");
 			cfg = CommonQueries.cfg(function);
@@ -79,6 +85,12 @@ public class StructuredSmartView extends FilteringAtlasSmartViewScript {
 
 			f = cf_node.parent().nodes(XCSG.Function); // find the parent function
 			cfg = CommonQueries.cfg(f); // get cfg from the function
+			
+//			if(prevFun!= null && prevFun == f.eval().nodes().one()) {
+//				Log.info("Re-Selected " + prevFun.getAttr(XCSG.name));
+//				return null;
+//			}
+			prevFun = f.eval().nodes().one();
 			
 			// if selected a control flow node, parse for subgraph	
 
