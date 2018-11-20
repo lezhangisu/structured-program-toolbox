@@ -28,10 +28,10 @@ import edu.iastate.structured.log.Log;
  * For a selected function, displays the control flow graph. The edge back to
  * the start of the loop is highlighted in blue.
  */
-public class Visualizer extends FilteringAtlasSmartViewScript {
+public class StructuredSmartView extends FilteringAtlasSmartViewScript {
 	private Map<Node, List<AtlasSet<Node>>> map_subgraphs = new HashMap<Node, List<AtlasSet<Node>>>(); // format: <Node controlFlowCondition, List<Q entry, Q body, Q exit> >
-	private Map<Node, Node> map_parent = new HashMap<Node, Node>(); // format: <ChildNode, ParentNode>
-	private Node previous_function = null;
+//	private Map<Node, Node> map_parent = new HashMap<Node, Node>(); // format: <ChildNode, ParentNode>
+//	private Node previous_function = null;
 	private AtlasSet<Node> selectable = new AtlasHashSet<Node>();
 	
 	@Override

@@ -7,7 +7,7 @@ import org.eclipse.core.runtime.Status;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleContext;
 
-import edu.iastate.structured.viewer.Activator;
+import edu.iastate.structured.Activator;
 
 /**
  * Centralized logging for Eclipse plugins.
