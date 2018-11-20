@@ -58,7 +58,18 @@ public class StructuredSmartView extends FilteringAtlasSmartViewScript {
 		if(!function.eval().nodes().isEmpty()) {
 			if(prevFun!= null && prevFun == function.eval().nodes().one()) {
 				Log.info("Re-Selected " + function.eval().nodes().one().getAttr(XCSG.name));
-				return null;
+				cfg = CommonQueries.cfg(function);
+								
+				selectable = GraphAnalyzer.getSelectable(cfg);
+				map_subgraphs = GraphAnalyzer.getMap();
+				Log.info("map size " + map_subgraphs.size());
+				
+				Log.info("selectable nodes: "+selectable.size());
+
+				Markup m = new Markup();
+				m.setEdge(Common.codemap().edges(XCSG.ControlFlowBackEdge), MarkupProperty.EDGE_COLOR, Color.BLUE);
+
+				return new StyledResult(cfg, m);
 			}
 			prevFun = function.eval().nodes().one();
 			// if no function, return original graph

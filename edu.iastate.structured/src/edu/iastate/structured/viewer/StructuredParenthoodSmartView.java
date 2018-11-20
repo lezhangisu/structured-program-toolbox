@@ -49,8 +49,36 @@ public class StructuredParenthoodSmartView extends FilteringAtlasSmartViewScript
 			
 			if(prevFun!= null && prevFun == functions.eval().nodes().one()) {
 				Log.info("Re-Selected " + functions.eval().nodes().one().getAttr(XCSG.name));
-				return null;
+				
+				Q cfg = CommonQueries.cfg(functions);
+				
+				Map<Node, Node> map_parent = GraphAnalyzer.getParentMap();
+				
+				AtlasSet<Node> allSelectable = cfg.nodesTaggedWithAny("STRUCT_SELECTABLE").eval().nodes();
+				
+				AtlasSet<Edge> edgeSet = new AtlasHashSet<Edge>();
+				
+				AtlasSet<Node> nodeSet = new AtlasHashSet<Node>();
+				
+				for(Node n : allSelectable) {
+					if(map_parent.keySet().contains(n)) {
+						Edge e = Graph.U.createEdge(map_parent.get(n), n);
+						edgeSet.add(e);
+					}else {
+						nodeSet.add(n);
+					}
+				}
+				
+				Q parenthood = Common.toQ(edgeSet).union(Common.toQ(nodeSet));
+				
+									
+				Markup m = new Markup();
+//				m.setEdge(Common.codemap().edges(XCSG.ControlFlowBackEdge), MarkupProperty.EDGE_COLOR, Color.BLUE);
+
+				Log.info("Function finished");
+				return new StyledResult(parenthood, m);
 			}
+			
 			prevFun = functions.eval().nodes().one();
 			
 			Log.info("Function selected");
