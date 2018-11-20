@@ -56,10 +56,10 @@ public class StructuredParenthoodSmartView extends FilteringAtlasSmartViewScript
 			Log.info("Function selected");
 			Q cfg = CommonQueries.cfg(functions);
 			
-			GraphAnalyzer ga = new GraphAnalyzer();
-			ga.analyze(cfg);
+//			GraphAnalyzer ga = new GraphAnalyzer();
+			GraphAnalyzer.analyze(cfg);
 			
-			Map<Node, Node> map_parent = ga.getParentMap();
+			Map<Node, Node> map_parent = GraphAnalyzer.getParentMap();
 			
 			AtlasSet<Node> allSelectable = cfg.nodesTaggedWithAny("STRUCT_SELECTABLE").eval().nodes();
 			
