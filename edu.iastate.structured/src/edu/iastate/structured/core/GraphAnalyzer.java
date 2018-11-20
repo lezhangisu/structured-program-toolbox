@@ -571,11 +571,11 @@ public class GraphAnalyzer {
 	 * @return none
 	 */
 	private static void updateChildExits(int cnt, Node child, Q dag, Q cfg) {
-		Log.info("updateChildExits()" + child.getAttr(XCSG.name));
+//		Log.info("updateChildExits()" + child.getAttr(XCSG.name));
 		
 		//avoid deadlock
 		if(cnt == 0) {
-			Log.info("updateChildExits() exceeds max recursion");
+			Log.info("updateChildExits() exceeds max recursion at " + child.getAttr(XCSG.name));
 			return;
 		}
 
@@ -605,7 +605,7 @@ public class GraphAnalyzer {
 			// if there is an intersection
 			if(extra_portion.intersection(subgraph_body_q).eval().nodes().size() > 0) {
 				
-				Log.info("update subgraph " + map_parent.get(child).getAttr(XCSG.name));
+//				Log.info("update subgraph " + map_parent.get(child).getAttr(XCSG.name));
 
 				// update the subgraph body
 				AtlasSet<Node> body = new AtlasHashSet<Node>();
@@ -645,10 +645,10 @@ public class GraphAnalyzer {
 					updateParent(n);
 				}
 				
-				Log.info("child size " + its_children.size());
+//				Log.info("child size " + its_children.size());
 				if(its_children.size()>0) {
 					for(Node forward_child : its_children) {
-						Log.info("Parent:: " + child.getAttr(XCSG.name) + " ||Child:: " + forward_child.getAttr(XCSG.name));
+//						Log.info("Parent:: " + child.getAttr(XCSG.name) + " ||Child:: " + forward_child.getAttr(XCSG.name));
 						updateChildExits(cnt--, forward_child, dag, cfg);
 					}
 				}
@@ -695,7 +695,9 @@ public class GraphAnalyzer {
 	 */
 	public static void analyze(Q cfg) {
 		//1. get selectable nodes (DLI loop entry, control nodes, labels) and tag them
-		
+		map_subgraphs.clear();
+		map_parent.clear();
+//		Log.info("Analyze-DLI");
 		// run DLI
 		com.ensoftcorp.open.jimple.commons.loops.DecompiledLoopIdentification.recoverLoops();
 
@@ -711,6 +713,7 @@ public class GraphAnalyzer {
 		Q cfbe=cfg.edges(XCSG.ControlFlowBackEdge).retainEdges(); //Control flow back edge
 		Q dag=cfg.differenceEdges(cfbe); // Control flow back edges removed
 		
+//		Log.info("Analyze-get block");
 		for(Node node : selectable) {
 			if(node.taggedWith("isLabel")&&!node.taggedWith(XCSG.Loop)) { // straight forward label
 //				Log.info(node.getAttr(XCSG.name) + " getModule");
@@ -724,6 +727,7 @@ public class GraphAnalyzer {
 				map_subgraphs.put(node, getBlock(cfg, node));
 			}
 			//for each module or block, update parent relationships 
+//			Log.info("Analyze-get block " + node.getAttr(XCSG.name));
 			updateParentMap(node, dag);
 		}
 		
@@ -736,6 +740,7 @@ public class GraphAnalyzer {
 		no_parents.addAll(map_subgraphs.keySet()); // add all selectable nodes
 		no_parents.removeAll(map_parent.keySet()); // remove nodes that have parents
 
+//		Log.info("Analyze-update nested");
 		// update all nested subgraphs
 		// while set of no parent subgraphs changes
 		int count = 0;
@@ -783,37 +788,9 @@ public class GraphAnalyzer {
 		return cfg.nodesTaggedWithAll("STRUCT_SELECTABLE").eval().nodes();
 	}
 	
-	/**
-	* Pre-process the whole graph and store the child-parent relationships and subgraphs for each control flow condition node
-	 * @param Q function
-	 * @return none
-	 */
-//	public static void preprocess(Q function) {
-//		// clear memory for previous functions
-//		map_subgraphs.clear();
-//		map_parent.clear();
-//		
-//		// run DLI to tag all loops
-//		com.ensoftcorp.open.jimple.commons.loops.DecompiledLoopIdentification.recoverLoops();
-//		
-//
-//		// initialize necessary variables
-//		Q cfg = CommonQueries.cfg(function);
-//		Q cfbe=cfg.edges(XCSG.ControlFlowBackEdge).retainEdges(); //Control flow back edge
-//		Q dag=cfg.differenceEdges(cfbe); // Control flow back edges removed
-//		
-//		AtlasSet<Node> label_set = cfg.nodesTaggedWithAll("isLabel").eval().nodes();
-//		
-//		for(Node label : label_set) {
-//			if(label.taggedWith(XCSG.Loop)) {
-//				continue;
-//			}
-//			List<AtlasSet<Node>> l = getModule(cfg, label);
-//			String s = label.getAttr(XCSG.name).toString() + " | " + l.get(0).size() + ", " + l.get(1).size() + ", " + l.get(2).size();
-//			Log.info(s);
-//		}
-//		
-//	}
+	public static Map<Node, Node> getParentMap(){
+		return map_parent;
+	}
 //	
 	// edu.iastate.structured.core.GraphAnalyzer.analyzeAll("file/path/*.txt")
 	public static void analyzeAll(String path) throws IOException {
@@ -865,6 +842,63 @@ public class GraphAnalyzer {
 		
 		writer.close();
 		
+	}
+	
+	public static void getParentGraph() throws IOException {
+		// get saving directory
+		new GraphAnalyzer().createDirectory();
+		// run DLI to tag all loops
+//		com.ensoftcorp.open.jimple.commons.loops.DecompiledLoopIdentification.recoverLoops();
+		
+		//		get all functions with labels
+		AtlasSet<Node> functionSet = Common.universe().nodes(XCSG.Function).eval().nodes();
+		
+		int num = 0;
+		for(Node function: functionSet) {
+			Log.info("AT function " + function.getAttr(XCSG.name));
+			Q cfg = CommonQueries.cfg(Common.toQ(function));
+			
+			
+			map_subgraphs.clear();
+			map_parent.clear();
+			analyze(cfg);
+			
+			AtlasSet<Node> allSelectable = cfg.nodesTaggedWithAny("STRUCT_SELECTABLE").eval().nodes();
+			
+			AtlasSet<Edge> edgeSet = new AtlasHashSet<Edge>();
+			
+			AtlasSet<Node> nodeSet = new AtlasHashSet<Node>();
+			
+			for(Node n : allSelectable) {
+				if(map_parent.keySet().contains(n)) {
+					Edge e = Graph.U.createEdge(map_parent.get(n), n);
+					edgeSet.add(e);
+				}else {
+					nodeSet.add(n);
+				}
+			}
+			
+			Q parenthood = Common.toQ(edgeSet).union(Common.toQ(nodeSet));
+			
+			if(Common.toQ(edgeSet).retainNodes().eval().nodes().size() == parenthood.eval().nodes().size()) {
+				continue;
+			}
+			
+			Markup markup = new Markup();
+			markup.set(Common.toQ(nodeSet).difference(Common.toQ(edgeSet).retainNodes()), MarkupProperty.NODE_BACKGROUND_COLOR, Color.YELLOW);
+			
+			
+			// set file name
+			String sourceFile = getQualifiedFunctionName(function);
+			String methodName =  function.getAttr(XCSG.name).toString();
+					
+			// output CFG
+			saveDisplayCFG(parenthood.eval(), num, sourceFile, methodName, markup, false);
+			num++;
+			
+			
+		}
+				
 	}
 
 
