@@ -17,7 +17,8 @@ public class Stats {
 		writer.write("Function,Nodes_CFG,Edges_CFG,Nodes_CG,Nodes_RCG,Num_of_CB\n");
 		
 		//		get all functions with labels
-		AtlasSet<Node> functionSet = Common.universe().nodes(XCSG.Function).eval().nodes();
+		Q app = Common.universe().nodes(XCSG.Project);
+		AtlasSet<Node> functionSet = app.contained().nodes(XCSG.Function).eval().nodes();
 		
 		for(Node function: functionSet) {
 			Q cfg = CommonQueries.cfg(Common.toQ(function));
