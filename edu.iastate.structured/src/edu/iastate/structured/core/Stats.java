@@ -3,13 +3,18 @@ package edu.iastate.structured.core;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.Map;
 
+import com.ensoftcorp.atlas.core.db.graph.Edge;
+import com.ensoftcorp.atlas.core.db.graph.Graph;
 import com.ensoftcorp.atlas.core.db.graph.Node;
 import com.ensoftcorp.atlas.core.db.set.AtlasSet;
 import com.ensoftcorp.atlas.core.script.Common;
 import com.ensoftcorp.open.c.commons.analysis.CommonQueries;
 import com.ensoftcorp.atlas.core.xcsg.XCSG;
 import com.ensoftcorp.atlas.core.query.Q;
+
+import edu.iastate.structured.log.Log;
 
 public class Stats {
 	public static void writeStats(String filePath) throws IOException {	
@@ -40,5 +45,77 @@ public class Stats {
 		}
 		writer.close();
 	}
+	
+	public static void writeParentStats(String filePath) throws IOException {	
+		FileWriter writer = new FileWriter(new File(filePath));
+		writer.write("Function, #ofCB\n");
+		
+		//		get all functions with labels
+		Q app = Common.universe().nodes(XCSG.Project);
+		AtlasSet<Node> functionSet = app.contained().nodes(XCSG.Function).eval().nodes();
+		
+		
+		
+		long cnt = 0;
+		boolean flag = false;
+		for(Node function: functionSet) {
+			cnt ++;
+			Log.info(cnt +  " | " + function.getAttr(XCSG.name).toString());
+			
+//			if(
+//					function.getAttr(XCSG.name).toString().contains("ip2name")
+//					||function.getAttr(XCSG.name).toString().contains("x_route")
+//					||function.getAttr(XCSG.name).toString().contains("setpath")
+//					||function.getAttr(XCSG.name).toString().contains("pcreate")
+//					||function.getAttr(XCSG.name).toString().contains("adump")
+//					||function.getAttr(XCSG.name).toString().contains("x_echo")
+//					||function.getAttr(XCSG.name).toString().contains("x_creat")
+//					||function.getAttr(XCSG.name).toString().contains("bpdump")
+//					||function.getAttr(XCSG.name).toString().contains("ibput")
+//					||function.getAttr(XCSG.name).toString().contains("dgalloc")
+//					||function.getAttr(XCSG.name).toString().contains("rfdump")
+//					||function.getAttr(XCSG.name).toString().contains("sysinit")
+//					||function.getAttr(XCSG.name).toString().contains("x_cat")
+//					||function.getAttr(XCSG.name).toString().contains("rwhod")
+//					||function.getAttr(XCSG.name).toString().contains("rwhoind")
+//					||function.getAttr(XCSG.name).toString().contains("sndrarp")
+//					||function.getAttr(XCSG.name).toString().contains("tqdump")
+//					||function.getAttr(XCSG.name).toString().contains("dgdump")
+//					||function.getAttr(XCSG.name).toString().contains("dskqopt")
+//					||function.getAttr(XCSG.name).toString().contains("ttyread")
+//					||function.getAttr(XCSG.name).toString().contains("ethstrt")
+//					) {
+////				flag = true;
+//				writer.write(function.getAttr(XCSG.name).toString() + "," + "\n");
+//				continue;
+//			}
+			
+//			if (!flag) {
+//				continue;
+//			}
+			
+			Q cfg = CommonQueries.cfg(Common.toQ(function));
+			
+			GraphAnalyzer.analyze(cfg);
+			
+			Map<Node, Node> map_parent = GraphAnalyzer.getParentMap();
+			
+			AtlasSet<Node> allSelectable = cfg.nodesTaggedWithAny("STRUCT_SELECTABLE").eval().nodes();
+			
+			
+			long cntParent = 0;
+			
+			for(Node n : allSelectable) {
+				if(!map_parent.keySet().contains(n)) {
+					cntParent ++;
+				}
+			}
+			
+			writer.write(function.getAttr(XCSG.name).toString() + "," + cntParent + "\n");
+			
+		}
+		writer.close();
+	}
+
 
 }
