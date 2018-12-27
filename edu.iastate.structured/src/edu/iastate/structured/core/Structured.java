@@ -1,7 +1,11 @@
 package edu.iastate.structured.core;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import com.ensoftcorp.atlas.core.db.graph.Node;
 import com.ensoftcorp.atlas.core.db.set.AtlasHashSet;
@@ -11,12 +15,17 @@ import com.ensoftcorp.atlas.core.xcsg.XCSG;
 import com.ensoftcorp.atlas.java.core.script.Common;
 import com.ensoftcorp.open.commons.algorithms.DominanceAnalysis;
 import com.ensoftcorp.open.commons.algorithms.UniqueEntryExitControlFlowGraph;
+
+import edu.iastate.structured.log.Log;
+
 import com.ensoftcorp.atlas.core.db.set.AtlasSet;
 import com.ensoftcorp.atlas.core.db.graph.Graph;
 import com.ensoftcorp.atlas.core.db.graph.Node;
 import com.ensoftcorp.atlas.core.db.graph.Edge;
 
 public class Structured {
+	private static Map<Node, List<AtlasSet<Node>>> map_subgraphs = new HashMap<Node, List<AtlasSet<Node>>>(); // format: <Node controlFlowCondition, List<Q entry, Q body, Q exit> >
+	private static Map<Node, Node> map_parent = new HashMap<Node, Node>(); // format: <ChildNode, ParentNode>
 	
 	public static Graph test(Q cfg, Node node) {
 		List<AtlasSet<Node>> l = getIfBlock(cfg, node);
@@ -27,10 +36,10 @@ public class Structured {
 	
 	public static Graph test(Q cfg) {
 //		return computeDominanceTree(cfg);
-		Q cfbe=cfg.edges(XCSG.ControlFlowBackEdge).retainEdges(); //Control flow back edge
-		Graph dag=cfg.differenceEdges(cfbe).retainEdges().eval();
-//		return removeGotoEdge(cfg);
-		return dag;
+//		Q cfbe=cfg.edges(XCSG.ControlFlowBackEdge).retainEdges(); //Control flow back edge
+//		Graph dag=cfg.differenceEdges(cfbe).retainEdges().eval();
+		return removeGotoEdge(cfg);
+//		return dag;
 	}
 	
 	private static Graph removeGotoEdge(Q cfg) {
@@ -38,11 +47,10 @@ public class Structured {
 		Graph dag=cfg.differenceEdges(cfbe).retainEdges().eval(); // Control flow back edges removed
 		Q dagQ = Common.toQ(dag);
 		
-		AtlasSet<Edge> edges = cfg.eval().edges();
 		AtlasSet<Node> gotoNodes = cfg.nodes(XCSG.GotoStatement).eval().nodes();
 		AtlasSet<Node> labelNodes = cfg.nodes("isLabel").eval().nodes();
 		AtlasSet<Edge> gotoEdges = dagQ.between(Common.toQ(gotoNodes), Common.toQ(labelNodes)).retainEdges().eval().edges();
-		return Common.toQ(edges).difference(Common.toQ(gotoEdges)).eval();
+		return cfg.differenceEdges(Common.toQ(gotoEdges)).eval();
 	}
 
 	private static Graph computeDominanceTree(Q graphQ) {
@@ -117,6 +125,22 @@ public class Structured {
 					difference(intersection).union(intersection.induce(dagQ).roots()).eval();
 		}
 		
+		// get dominance tree
+		Graph idomTree = computeDominanceTree(Common.toQ(removeGotoEdge(cfg)));
+		
+		// check if all nodes are dominated by the control statement
+		AtlasSet<Node> redundantNodes = new AtlasHashSet<Node>();
+		for(Node body_node : subgraph.nodes()) {
+			if(!Common.toQ(idomTree).forward(Common.toQ(body_node)).eval().nodes().contains(node)) {
+				redundantNodes.add(body_node);
+			}
+		}
+		
+		subgraph = Common.toQ(subgraph).difference(Common.toQ(redundantNodes))
+				.union(Common.toQ(node)).union(Common.toQ(redundantNodes).induce(cfg).roots())
+				.induce(cfg).retainEdges().eval();
+		
+		
 //		AtlasSet<Node> trueBranch = cfg.between(cfg.forwardStep(Common.toQ(node)).selectEdge(XCSG.conditionValue, "true", true)).eval().nodes();
 //		AtlasSet<Node> falseBranch = cfg.forwardOn(cfg.forwardStep(Common.toQ(node)).selectEdge(XCSG.conditionValue, "false", false)).eval().nodes();
 //		
@@ -169,18 +193,35 @@ public class Structured {
 		AtlasSet<Node> labelStopNode = Common.toQ(labelNode).difference(cfg.nodesTaggedWithAny(XCSG.Loop)).eval().nodes();
 
 		// get the subgraph
+//		Graph subgraph =
+//				// get the part from loop condition to DAG leaves (to include the loop and return statements)
+//				dagQ.between(Common.toQ(node), Common.toQ(dagLeaves)).
+//				// get the part from loop condition to false node (to include possible break statements)
+//				union(dagQ.between(Common.toQ(node), Common.toQ(falseNode))).
+//				// exclude the part from false node to DAG leaves
+//				difference(dagQ.between(Common.toQ(falseNode), Common.toQ(dagLeaves)).retainEdges()).
+//				// exclude the part from label node to DAG leaves
+//				difference(dagQ.between(Common.toQ(labelStopNode), Common.toQ(dagLeaves)).retainEdges()).
+//				// put back false node and false edge to make the subgraph complete
+//				union(Common.toQ(falseNode)).union(Common.toQ(falseEdge)).union(Common.toQ(labelNode)).retainEdges().eval();
+
+		// TEST break long query
 		Graph subgraph =
 				// get the part from loop condition to DAG leaves (to include the loop and return statements)
-				dagQ.between(Common.toQ(node), Common.toQ(dagLeaves)).
+				dagQ.between(Common.toQ(node), Common.toQ(dagLeaves)).eval();
+		subgraph = 
 				// get the part from loop condition to false node (to include possible break statements)
-				union(dagQ.between(Common.toQ(node), Common.toQ(falseNode))).
+				Common.toQ(subgraph).union(dagQ.between(Common.toQ(node), Common.toQ(falseNode))).eval();
+		subgraph = 
 				// exclude the part from false node to DAG leaves
-				difference(dagQ.between(Common.toQ(falseNode), Common.toQ(dagLeaves)).retainEdges()).
+				Common.toQ(subgraph).difference(dagQ.between(Common.toQ(falseNode), Common.toQ(dagLeaves)).retainEdges()).eval();
+		subgraph =
 				// exclude the part from label node to DAG leaves
-				difference(dagQ.between(Common.toQ(labelStopNode), Common.toQ(dagLeaves)).retainEdges()).
+				Common.toQ(subgraph).difference(dagQ.between(Common.toQ(labelStopNode), Common.toQ(dagLeaves)).retainEdges()).eval();
+		subgraph =
 				// put back false node and false edge to make the subgraph complete
-				union(Common.toQ(falseNode)).union(Common.toQ(falseEdge)).union(Common.toQ(labelNode)).retainEdges().eval();
-
+				Common.toQ(subgraph).union(Common.toQ(falseNode)).union(Common.toQ(falseEdge)).union(Common.toQ(labelNode)).retainEdges().eval();
+		
 		// use induce(cfg) to add missing edges from CFG so we have complete subgraph
 		subgraph = Common.toQ(subgraph).induce(cfg).retainEdges().eval();
 
@@ -370,6 +411,62 @@ public class Structured {
 	}
 	
 	public static void analyze(Q cfg) {
+		//1. get selectable nodes (DLI loop entry, control nodes, labels) and tag them
+		map_subgraphs.clear();
+		map_parent.clear();
+//		Log.info("Analyze-DLI");
+		// run DLI
+		com.ensoftcorp.open.jimple.commons.loops.DecompiledLoopIdentification.recoverLoops();
+
+		// initialize a set with label nodes, DLI loop entry nodes, control statement nodes
+		AtlasSet<Node> selectable = cfg.nodesTaggedWithAny("isLabel", XCSG.Loop, XCSG.ControlFlowCondition).eval().nodes();
+
+		// tag selectable nodes
+		for(Node s : selectable) {
+			s.tag("STRUCT_SELECTABLE");
+		}
 		
+		//2. for each selectable node, get block or module, store them in map
+		Q cfbe=cfg.edges(XCSG.ControlFlowBackEdge).retainEdges(); //Control flow back edge
+		Q dag=cfg.differenceEdges(cfbe); // Control flow back edges removed
+		
+//		Log.info("Analyze-get block");
+		for(Node node : selectable) {
+			Log.info("Proceccing block " + node.getAttr(XCSG.name));
+			if(node.taggedWith("isLabel")&&!node.taggedWith(XCSG.Loop)) { // straight forward label
+//				Log.info(node.getAttr(XCSG.name) + " getModule");
+				map_subgraphs.put(node, getLabelModule(cfg, node));
+			}else if(node.taggedWith("isLabel")&&node.taggedWith(XCSG.Loop)) { // label creates loop
+				map_subgraphs.put(node, getLabelLoop(cfg, node));
+			}else if(node.taggedWith("isDoWhileLoop")) {  // do while loop
+				map_subgraphs.put(node, getDoWhile(cfg, node));
+			}else if(node.taggedWith(XCSG.ControlFlowIfCondition)) { // if 
+				map_subgraphs.put(node, getIfBlock(cfg, node));
+			}else if(node.taggedWith(XCSG.ControlFlowLoopCondition)) { // while, for loop
+				map_subgraphs.put(node, getLoopBlock(cfg, node));
+			}else { // Switch
+				map_subgraphs.put(node, getSwitchBlock(cfg, node));
+			}
+			//for each module or block, update parent relationships 
+//			Log.info("Analyze-get block " + node.getAttr(XCSG.name));
+		}
+		
+		//3. for each nested module or block, update exit points based on parents' exit points
+		// start with nodes with no parents (ancestor nodes)
+//		Set<Node> no_parents = new HashSet<Node>();
+//		Set<Node> previous_no_parents = new HashSet<Node>();
+		
+		// initialize node set with node has no parents (find out ancestor nodes)
+//		no_parents.addAll(map_subgraphs.keySet()); // add all selectable nodes
+//		no_parents.removeAll(map_parent.keySet()); // remove nodes that have parents
+
+	}
+	
+	public static Map<Node, List<AtlasSet<Node>>> getMap(){
+		return map_subgraphs;
+	}
+	
+	public static AtlasSet<Node> getSelectable(Q cfg){
+		return cfg.nodesTaggedWithAll("STRUCT_SELECTABLE").eval().nodes();
 	}
 }
