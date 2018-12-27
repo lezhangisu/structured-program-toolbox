@@ -53,14 +53,14 @@ public class StructuredSmartView2 extends FilteringAtlasSmartViewScript {
 //		Q cf_condition = filteredSelection.nodes(XCSG.ControlFlowCondition);
 //		Q label_node = filteredSelection.nodes("isLabel");
 		Q f = Common.empty();
-		Q cfg = Common.empty();
+		Q cfgQ = Common.empty();
 		
 		if(!function.eval().nodes().isEmpty()) {
 			if(prevFun!= null && prevFun == function.eval().nodes().one()) {
 				Log.info("Re-Selected " + function.eval().nodes().one().getAttr(XCSG.name));
-				cfg = CommonQueries.cfg(function);
+				cfgQ = CommonQueries.cfg(function);
 								
-				selectable = Structured.getSelectable(cfg);
+				selectable = Structured.getSelectable(cfgQ);
 				map_subgraphs = Structured.getMap();
 				Log.info("map size " + map_subgraphs.size());
 				
@@ -69,16 +69,16 @@ public class StructuredSmartView2 extends FilteringAtlasSmartViewScript {
 				Markup m = new Markup();
 				m.setEdge(Common.codemap().edges(XCSG.ControlFlowBackEdge), MarkupProperty.EDGE_COLOR, Color.BLUE);
 
-				return new StyledResult(cfg, m);
+				return new StyledResult(cfgQ, m);
 			}
 			prevFun = function.eval().nodes().one();
 			// if no function, return original graph
 			Log.info("Function " + function.eval().nodes().one().getAttr(XCSG.name) + " Selected");
-			cfg = CommonQueries.cfg(function);
+			cfgQ = CommonQueries.cfg(function);
 			
-			Structured.analyze(cfg);
+			Structured.analyze(cfgQ.eval());
 			
-			selectable = Structured.getSelectable(cfg);
+			selectable = Structured.getSelectable(cfgQ);
 			map_subgraphs = Structured.getMap();
 			Log.info("map size " + map_subgraphs.size());
 			
@@ -87,7 +87,7 @@ public class StructuredSmartView2 extends FilteringAtlasSmartViewScript {
 			Markup m = new Markup();
 			m.setEdge(Common.codemap().edges(XCSG.ControlFlowBackEdge), MarkupProperty.EDGE_COLOR, Color.BLUE);
 
-			return new StyledResult(cfg, m);
+			return new StyledResult(cfgQ, m);
 
 		}else if(!selectable.isEmpty() && selectable.contains(cf_node.eval().nodes().getFirst())) {
 			Log.info("selectable node");
@@ -95,7 +95,7 @@ public class StructuredSmartView2 extends FilteringAtlasSmartViewScript {
 //			Log.info("Control Flow Condition Node \" " + cf_condition.eval().nodes().one().getAttr(XCSG.name) + "\" Selected");
 
 			f = cf_node.parent().nodes(XCSG.Function); // find the parent function
-			cfg = CommonQueries.cfg(f); // get cfg from the function
+			cfgQ = CommonQueries.cfg(f); // get cfg from the function
 			
 //			if(prevFun!= null && prevFun == f.eval().nodes().one()) {
 //				Log.info("Re-Selected " + prevFun.getAttr(XCSG.name));
@@ -127,21 +127,21 @@ public class StructuredSmartView2 extends FilteringAtlasSmartViewScript {
 				// mark control flow back edge with blue
 				m.setEdge(Common.codemap().edges(XCSG.ControlFlowBackEdge), MarkupProperty.EDGE_COLOR, Color.BLUE);
 				// mark subgraph edges with red
-				m.setEdge(Common.toQ(subgraph.get(1)).union(Common.toQ(subgraph.get(0))).union(Common.toQ(subgraph.get(2))).induce(cfg.retainEdges()), MarkupProperty.EDGE_COLOR, Color.RED);
+				m.setEdge(Common.toQ(subgraph.get(1)).union(Common.toQ(subgraph.get(0))).union(Common.toQ(subgraph.get(2))).induce(cfgQ.retainEdges()), MarkupProperty.EDGE_COLOR, Color.RED);
 			}
-			return new StyledResult(cfg, m);
+			return new StyledResult(cfgQ, m);
 
 		}else if(!cf_node.eval().nodes().isEmpty()) {
 //			Log.info("Ordinary Control Flow Node Selected");
 			Log.info("selectable nodes: "+selectable.size());
 			
 			f = cf_node.parent().nodes(XCSG.Function); // find the parent function
-			cfg = CommonQueries.cfg(f); // get cfg from the function
+			cfgQ = CommonQueries.cfg(f); // get cfg from the function
 
 			Markup m = new Markup();
 			m.setEdge(Common.codemap().edges(XCSG.ControlFlowBackEdge), MarkupProperty.EDGE_COLOR, Color.BLUE);
 
-			return new StyledResult(cfg, m);
+			return new StyledResult(cfgQ, m);
 		}
 		return null;
 

@@ -4,6 +4,8 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Map;
+import java.io.BufferedWriter;
+import java.io.PrintWriter;
 
 import com.ensoftcorp.atlas.core.db.graph.Edge;
 import com.ensoftcorp.atlas.core.db.graph.Graph;
@@ -47,13 +49,13 @@ public class Stats {
 	}
 	
 	public static void writeParentStats(String filePath) throws IOException {	
-		FileWriter writer = new FileWriter(new File(filePath));
+		FileWriter writer = new FileWriter(new File(filePath), true);
 		writer.write("Function, #ofCB\n");
+		
 		
 		//		get all functions with labels
 		Q app = Common.universe().nodes(XCSG.Project);
 		AtlasSet<Node> functionSet = app.contained().nodes(XCSG.Function).eval().nodes();
-		
 		
 		
 		long cnt = 0;
@@ -61,6 +63,10 @@ public class Stats {
 		for(Node function: functionSet) {
 			cnt ++;
 			Log.info(cnt +  " | " + function.getAttr(XCSG.name).toString());
+			
+			if(cnt < 0) {
+				continue;
+			}
 			
 //			if(
 //					function.getAttr(XCSG.name).toString().contains("ip2name")
@@ -94,24 +100,28 @@ public class Stats {
 //				continue;
 //			}
 			
-			Q cfg = CommonQueries.cfg(Common.toQ(function));
+			Q cfgQ = CommonQueries.cfg(Common.toQ(function));
 			
-			GraphAnalyzer.analyze(cfg);
+			Structured.analyze(cfgQ.eval());
 			
-			Map<Node, Node> map_parent = GraphAnalyzer.getParentMap();
+			Map<Node, Node> map_parent = Structured.getParentMap(cfgQ.eval());
 			
-			AtlasSet<Node> allSelectable = cfg.nodesTaggedWithAny("STRUCT_SELECTABLE").eval().nodes();
+			AtlasSet<Node> allSelectable = cfgQ.nodes(XCSG.ControlFlowCondition, "LoopByLabel").eval().nodes();
 			
 			
-			long cntParent = 0;
+			long cntOuterBlock = 0;
 			
 			for(Node n : allSelectable) {
 				if(!map_parent.keySet().contains(n)) {
-					cntParent ++;
+					cntOuterBlock ++;
 				}
 			}
 			
-			writer.write(function.getAttr(XCSG.name).toString() + "," + cntParent + "\n");
+			BufferedWriter br = new BufferedWriter(writer);			
+			
+			br.write(function.getAttr(XCSG.name).toString() + "," + cntOuterBlock + "\n");
+
+			br.flush();
 			
 		}
 		writer.close();

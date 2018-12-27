@@ -40,7 +40,7 @@ import edu.iastate.structured.log.Log;
 public class GraphAnalyzer {
 	private static Map<Node, List<AtlasSet<Node>>> map_subgraphs = new HashMap<Node, List<AtlasSet<Node>>>(); // format: <Node controlFlowCondition, List<Q entry, Q body, Q exit> >
 	private static Map<Node, Node> map_parent = new HashMap<Node, Node>(); // format: <ChildNode, ParentNode>
-
+	private static Map<Node, Integer> map_distance = new HashMap<Node, Integer>(); // format: <controlNode, distance_to_root>
 	
 	/**
 	 * The name pattern for the directory containing the graphs for the processed goto.
@@ -509,17 +509,18 @@ public class GraphAnalyzer {
 	 */
 	private static void updateParentMap(Node parent_node, Q dag) {  // input: graph root and graph list [entry, body, exit]
 
-		// get body nodes of this block
-		Q subgraph_body_q = Common.toQ(map_subgraphs.get(parent_node).get(1));
+		// get body node set of this block
+		AtlasSet<Node> subgraph_body_q = Common.toQ(map_subgraphs.get(parent_node).get(1))
+				.nodesTaggedWithAny("STRUCT_SELECTABLE").eval().nodes();
 
 		// update exits of nested nodes
-		for(Node child : subgraph_body_q.nodesTaggedWithAny("STRUCT_SELECTABLE").eval().nodes()) {
+		for(Node child : subgraph_body_q) {
 			if(map_parent.containsKey(child)) {
 				Node prev_parent = map_parent.get(child);
 				// compare previous parent with current parent
 				// pick the smaller sized father to be the actual parent
-				if(getDistance(parent_node, child, dag) < getDistance(prev_parent, child, dag)) {
-
+				if(map_distance.get(parent_node) > map_distance.get(prev_parent)) {
+					
 					// if smaller, update parenthood
 					map_parent.put(child, parent_node);
 				}
@@ -530,40 +531,73 @@ public class GraphAnalyzer {
 		}
 	}
 	
-	/**
-	* Get shortest distance from node1 to node2 using BFS
-	 * @param node1, node2
-	 * @return int distance
-	 */
-	private static int getDistance(Node node1, Node node2, Q dag) {
+	private static Map<Node, Integer> calcDistance(Q dag) {
+		
+		Map<Node, Integer> retMap = new HashMap<Node, Integer>();
+		
+		Node root = dag.roots().eval().nodes().getFirst();
+				
 		AtlasSet<Node> current = new AtlasHashSet<Node>();
-		current.add(node1);
+		current.add(root);
 		int steps = 0;
-		if(dag.forward(Common.toQ(node1)).eval().nodes().contains(node2)) {
-			Q partDag = dag.between(Common.toQ(node1), Common.toQ(node2));
-			int count = 0;
-			while(!current.isEmpty()) {
-				steps += 1;
-				AtlasSet<Node> tmp = new AtlasHashSet<Node>();
-				for(Node node : current) {
-					AtlasSet<Node> tmp_nxt = partDag.successors(Common.toQ(node)).eval().nodes();
-					if(tmp_nxt.contains(node2)) {
-						return steps;
+				
+		while(!current.isEmpty()) {
+			steps += 1;
+			AtlasSet<Node> tmp = new AtlasHashSet<Node>();
+			for(Node node : current) {
+				AtlasSet<Node> tmp_nxt = dag.successors(Common.toQ(node)).eval().nodes();
+				
+				for(Node sel : tmp_nxt.taggedWithAny("STRUCT_SELECTABLE")) {
+					if(retMap.containsKey(sel)) {
+						continue;
 					}
-					tmp.addAll(tmp_nxt);
+					retMap.put(sel, steps);		
 				}
-				current.clear();
-				current.addAll(tmp);
-
-				count++;
-				if(count>1000) {
-					Log.info("GetDistance() exceeds max iterations 1000 at node " + node1.getAttr(XCSG.name) + " | and node | " + node2.getAttr(XCSG.name));
-					return steps;
-				}
+				
+				tmp.addAll(tmp_nxt);
 			}
+			current.clear();
+			current.addAll(tmp);
 		}
-		return -1;
+
+		return retMap;
+		
 	}
+	
+//	/**
+//	* Get shortest distance from node1 to node2 using BFS
+//	 * @param node1, node2
+//	 * @return int distance
+//	 */
+//	private static int getDistance(Node node1, Node node2, Q dag) {
+//		AtlasSet<Node> current = new AtlasHashSet<Node>();
+//		current.add(node1);
+//		int steps = 0;
+//		if(dag.forward(Common.toQ(node1)).eval().nodes().contains(node2)) {
+//			Q partDag = dag.between(Common.toQ(node1), Common.toQ(node2));
+//			int count = 0;
+//			while(!current.isEmpty()) {
+//				steps += 1;
+//				AtlasSet<Node> tmp = new AtlasHashSet<Node>();
+//				for(Node node : current) {
+//					AtlasSet<Node> tmp_nxt = partDag.successors(Common.toQ(node)).eval().nodes();
+//					if(tmp_nxt.contains(node2)) {
+//						return steps;
+//					}
+//					tmp.addAll(tmp_nxt);
+//				}
+//				current.clear();
+//				current.addAll(tmp);
+//
+//				count++;
+//				if(count>1000) {
+//					Log.info("GetDistance() exceeds max iterations 1000 at node " + node1.getAttr(XCSG.name) + " | and node | " + node2.getAttr(XCSG.name));
+//					return steps;
+//				}
+//			}
+//		}
+//		return -1;
+//	}
 	
 	/**
 	* Update child subgraph based on the parent's exits
@@ -694,6 +728,8 @@ public class GraphAnalyzer {
 	 * @return none
 	 */
 	public static void analyze(Q cfg) {
+		// TIMER
+		long startTime=System.currentTimeMillis();
 		//1. get selectable nodes (DLI loop entry, control nodes, labels) and tag them
 		map_subgraphs.clear();
 		map_parent.clear();
@@ -701,6 +737,12 @@ public class GraphAnalyzer {
 		// run DLI
 		com.ensoftcorp.open.jimple.commons.loops.DecompiledLoopIdentification.recoverLoops();
 
+		
+		// TIMER
+		Log.info("DLI runtime: " + (System.currentTimeMillis()-startTime)/1000.0 + " s");
+		startTime=System.currentTimeMillis();
+		
+		
 		// initialize a set with label nodes, DLI loop entry nodes, control statement nodes
 		AtlasSet<Node> selectable = cfg.nodesTaggedWithAny("isLabel", XCSG.Loop, XCSG.ControlFlowCondition).eval().nodes();
 
@@ -713,23 +755,79 @@ public class GraphAnalyzer {
 		Q cfbe=cfg.edges(XCSG.ControlFlowBackEdge).retainEdges(); //Control flow back edge
 		Q dag=cfg.differenceEdges(cfbe); // Control flow back edges removed
 		
+		map_distance = calcDistance(dag);
+		
+		//TIMER
+		long ParentMapTotal=0;
+		
+		long moduleTime=0;
+		long labelTime=0;
+		long dowhileTime=0;
+		long otherTime=0;
+		long CBstart = 0;
+		
 //		Log.info("Analyze-get block");
 		for(Node node : selectable) {
 			if(node.taggedWith("isLabel")&&!node.taggedWith(XCSG.Loop)) { // straight forward label
 //				Log.info(node.getAttr(XCSG.name) + " getModule");
+				
+				//TIMER
+				CBstart=System.currentTimeMillis();
+				
 				map_subgraphs.put(node, getModule(cfg, node));
+				
+				//TIMER
+				moduleTime += System.currentTimeMillis()-CBstart;
+				
 			}else if(node.taggedWith("isLabel")&&node.taggedWith(XCSG.Loop)) { // label creates loop
+				//TIMER
+				CBstart=System.currentTimeMillis();
+				
 				map_subgraphs.put(node, getLabelLoop(cfg, node));
+				
+				//TIMER
+				labelTime += System.currentTimeMillis()-CBstart;
 			}else if(node.taggedWith("isDoWhileLoop")) {  // do while loop
+				//TIMER
+				CBstart=System.currentTimeMillis();
+				
 				map_subgraphs.put(node, getDoWhile(cfg, node));
+				
+				//TIMER
+				dowhileTime += System.currentTimeMillis()-CBstart;
 			}else { // normal IF/While/For/Switch
 //				Log.info(node.getAttr(XCSG.name) + " getBlock");
+				
+				//TIMER
+				CBstart=System.currentTimeMillis();
+				
 				map_subgraphs.put(node, getBlock(cfg, node));
+				
+				//TIMER
+				otherTime += System.currentTimeMillis()-CBstart;
 			}
 			//for each module or block, update parent relationships 
 //			Log.info("Analyze-get block " + node.getAttr(XCSG.name));
+			
+			//TIMER
+			long PMstart=System.currentTimeMillis();
+			
 			updateParentMap(node, dag);
+			
+			//TIMER
+			ParentMapTotal += System.currentTimeMillis()-PMstart;
 		}
+		
+		// TIMER
+		Log.info("First struct map runtime: " + (System.currentTimeMillis()-startTime)/1000.0 + " s");
+		startTime=System.currentTimeMillis();
+		
+		Log.info("BLOCK module runtime: " + moduleTime/1000.0 + " s");
+		Log.info("BLOCK label runtime: " + labelTime/1000.0 + " s");
+		Log.info("BLOCK dowhile runtime: " + dowhileTime/1000.0 + " s");
+		Log.info("BLOCK other runtime: " + otherTime/1000.0 + " s");
+		
+		Log.info("Parent map total runtime: " + ParentMapTotal/1000.0 + " s");
 		
 		//3. for each nested module or block, update exit points based on parents' exit points
 		// start with nodes with no parents (ancestor nodes)
@@ -741,6 +839,10 @@ public class GraphAnalyzer {
 		no_parents.removeAll(map_parent.keySet()); // remove nodes that have parents
 
 //		Log.info("Analyze-update nested");
+		
+		//TIMER
+		ParentMapTotal=0;
+		
 		// update all nested subgraphs
 		// while set of no parent subgraphs changes
 		int count = 0;
@@ -761,6 +863,9 @@ public class GraphAnalyzer {
 				}
 
 			}
+			
+			//TIMER
+			long PMstart=System.currentTimeMillis();
 
 			// update parenthood map
 			map_parent.clear();
@@ -768,6 +873,9 @@ public class GraphAnalyzer {
 				// map_parent is updated in function updateParent()
 				updateParentMap(node, dag);
 			}
+			
+			//TIMER
+			ParentMapTotal += System.currentTimeMillis()-PMstart;
 
 			// update the two sets for comparison
 			previous_no_parents.clear();
@@ -778,6 +886,11 @@ public class GraphAnalyzer {
 
 			count++;
 		}
+		
+		// TIMER
+		Log.info("Count " + count);
+		Log.info("Update child runtime: " + (System.currentTimeMillis()-startTime)/1000.0 + " s");
+		Log.info("Parent map total runtime: " + ParentMapTotal/1000.0 + " s");
 	}
 	
 	public static Map<Node, List<AtlasSet<Node>>> getMap(){
