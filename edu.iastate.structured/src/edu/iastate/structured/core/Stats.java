@@ -50,7 +50,7 @@ public class Stats {
 	
 	public static void writeParentStats(String filePath) throws IOException {	
 		FileWriter writer = new FileWriter(new File(filePath), true);
-		writer.write("Function, #ofCB\n");
+		writer.write("Function, #_of_CB, #_of_GOTO, #_of_outerBlock\n");
 		
 		
 		//		get all functions with labels
@@ -117,9 +117,11 @@ public class Stats {
 				}
 			}
 			
+			long cntGoto = cfgQ.nodes(XCSG.GotoStatement).eval().nodes().size();
+			
 			BufferedWriter br = new BufferedWriter(writer);			
 			
-			br.write(function.getAttr(XCSG.name).toString() + "," + cntOuterBlock + "\n");
+			br.write(function.getAttr(XCSG.name).toString() + "," + allSelectable.size() + "," + cntGoto + "," + cntOuterBlock + "\n");
 
 			br.flush();
 			

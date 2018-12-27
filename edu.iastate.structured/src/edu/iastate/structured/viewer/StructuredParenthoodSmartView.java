@@ -20,7 +20,7 @@ import com.ensoftcorp.atlas.core.xcsg.XCSG;
 import com.ensoftcorp.atlas.ui.scripts.selections.FilteringAtlasSmartViewScript;
 import com.ensoftcorp.atlas.ui.selection.event.IAtlasSelectionEvent;
 import com.ensoftcorp.open.c.commons.analysis.CommonQueries;
-import edu.iastate.structured.core.GraphAnalyzer;
+import edu.iastate.structured.core.Structured;
 
 import edu.iastate.structured.log.Log;
 
@@ -50,11 +50,11 @@ public class StructuredParenthoodSmartView extends FilteringAtlasSmartViewScript
 			if(prevFun!= null && prevFun == functions.eval().nodes().one()) {
 				Log.info("Re-Selected " + functions.eval().nodes().one().getAttr(XCSG.name));
 				
-				Q cfg = CommonQueries.cfg(functions);
+				Q cfgQ = CommonQueries.cfg(functions);
 				
-				Map<Node, Node> map_parent = GraphAnalyzer.getParentMap();
+				Map<Node, Node> map_parent = Structured.getParentMap(cfgQ.eval());
 				
-				AtlasSet<Node> allSelectable = cfg.nodesTaggedWithAny("STRUCT_SELECTABLE").eval().nodes();
+				AtlasSet<Node> allSelectable = cfgQ.nodesTaggedWithAny("STRUCT_SELECTABLE").eval().nodes();
 				
 				AtlasSet<Edge> edgeSet = new AtlasHashSet<Edge>();
 				
@@ -82,14 +82,14 @@ public class StructuredParenthoodSmartView extends FilteringAtlasSmartViewScript
 			prevFun = functions.eval().nodes().one();
 			
 			Log.info("Function selected");
-			Q cfg = CommonQueries.cfg(functions);
+			Q cfgQ = CommonQueries.cfg(functions);
 			
 //			GraphAnalyzer ga = new GraphAnalyzer();
-			GraphAnalyzer.analyze(cfg);
+			Structured.analyze(cfgQ.eval());
 			
-			Map<Node, Node> map_parent = GraphAnalyzer.getParentMap();
+			Map<Node, Node> map_parent = Structured.getParentMap(cfgQ.eval());
 			
-			AtlasSet<Node> allSelectable = cfg.nodesTaggedWithAny("STRUCT_SELECTABLE").eval().nodes();
+			AtlasSet<Node> allSelectable = cfgQ.nodesTaggedWithAny("STRUCT_SELECTABLE").eval().nodes();
 			
 			AtlasSet<Edge> edgeSet = new AtlasHashSet<Edge>();
 			
