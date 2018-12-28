@@ -42,8 +42,11 @@ public class Stats {
 			AtlasSet<Node> selectable = cfgQ.nodesTaggedWithAny("isLabel", XCSG.Loop, XCSG.ControlFlowIfCondition, XCSG.ControlFlowSwitchCondition).eval().nodes();
 			long numCB = selectable.size();
 			
-			writer.write(function.getAttr(XCSG.name).toString() + "," + nodesCfg + "," + edgesCfg + "," + nodesCg + "," + nodesRcg + "," + numCB + "\n");
+			BufferedWriter br = new BufferedWriter(writer);
 			
+			br.write(function.getAttr(XCSG.name).toString() + "," + nodesCfg + "," + edgesCfg + "," + nodesCg + "," + nodesRcg + "," + numCB + "\n");
+			
+			br.flush();
 		}
 		writer.close();
 	}
