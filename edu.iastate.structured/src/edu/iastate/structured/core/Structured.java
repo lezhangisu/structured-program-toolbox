@@ -70,6 +70,10 @@ public class Structured {
 		AtlasSet<Node> graphRoots = graphQ.roots().eval().nodes();
 		AtlasSet<Node> graphLeaves = graphQ.leaves().eval().nodes();
 		
+		if(graphRoots.isEmpty() || graphLeaves.isEmpty()) {
+			return null;
+		}
+		
 		UniqueEntryExitControlFlowGraph uGraph = new UniqueEntryExitControlFlowGraph(graph, graphRoots, graphLeaves);
 		Graph idomTree = DominanceAnalysis.computeDominanceTree(uGraph);
 		
@@ -141,14 +145,17 @@ public class Structured {
 		// get dominance tree
 		Graph idomTree = computeDominanceTree(removeGotoEdge(dag));
 		
+		
 		// check if all nodes are dominated by the control statement
 		AtlasSet<Node> redundantNodes = new AtlasHashSet<Node>();
-		for(Node body_node : subgraph.nodes()) {
-			if(!Common.toQ(idomTree).forward(Common.toQ(body_node)).eval().nodes().contains(node)) {
-				redundantNodes.add(body_node);
+		
+		if(idomTree!=null) {
+			for(Node body_node : subgraph.nodes()) {
+				if(!Common.toQ(idomTree).forward(Common.toQ(body_node)).eval().nodes().contains(node)) {
+					redundantNodes.add(body_node);
+				}
 			}
 		}
-		
 		subgraph = Common.toQ(subgraph).difference(Common.toQ(redundantNodes))
 				.union(Common.toQ(node)).union(Common.toQ(redundantNodes).induce(cfgQ).roots())
 				.induce(cfgQ).retainEdges().eval();
@@ -228,9 +235,12 @@ public class Structured {
 		
 		// check if all nodes are dominated by the control statement
 		AtlasSet<Node> redundantNodes = new AtlasHashSet<Node>();
-		for(Node body_node : subgraph.nodes()) {
-			if(!Common.toQ(idomTree).forward(Common.toQ(body_node)).eval().nodes().contains(node)) {
-				redundantNodes.add(body_node);
+		
+		if(idomTree!=null) {
+			for(Node body_node : subgraph.nodes()) {
+				if(!Common.toQ(idomTree).forward(Common.toQ(body_node)).eval().nodes().contains(node)) {
+					redundantNodes.add(body_node);
+				}
 			}
 		}
 		
