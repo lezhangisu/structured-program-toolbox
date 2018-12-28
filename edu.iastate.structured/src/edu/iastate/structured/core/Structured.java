@@ -516,7 +516,7 @@ public class Structured {
 		
 		Log.info("Tag Selectable Begins");
 		// initialize a set with label nodes, DLI loop entry nodes, control statement nodes
-		AtlasSet<Node> selectable = cfgQ.nodesTaggedWithAny("isLabel", XCSG.Loop, XCSG.ControlFlowCondition).eval().nodes();
+		AtlasSet<Node> selectable = cfgQ.nodesTaggedWithAny("isLabel", XCSG.Loop, XCSG.ControlFlowIfCondition, XCSG.ControlFlowSwitchCondition).eval().nodes();
 
 		// tag selectable nodes
 		for(Node s : selectable) {
@@ -542,7 +542,7 @@ public class Structured {
 				map_subgraphs.put(node, getIfBlock(cfg, node));
 			}else if(node.taggedWith(XCSG.ControlFlowLoopCondition)) { // while, for loop
 				map_subgraphs.put(node, getLoopBlock(cfg, node));
-			}else { // Switch
+			}else if(node.taggedWith(XCSG.ControlFlowSwitchCondition)) { // Switch
 				map_subgraphs.put(node, getSwitchBlock(cfg, node));
 			}
 			//for each module or block, update parent relationships 

@@ -28,9 +28,9 @@ public class Stats {
 		AtlasSet<Node> functionSet = app.contained().nodes(XCSG.Function).eval().nodes();
 		
 		for(Node function: functionSet) {
-			Q cfg = CommonQueries.cfg(Common.toQ(function));
-			long nodesCfg = cfg.eval().nodes().size();
-			long edgesCfg = cfg.eval().edges().size();
+			Q cfgQ = CommonQueries.cfg(Common.toQ(function));
+			long nodesCfg = cfgQ.eval().nodes().size();
+			long edgesCfg = cfgQ.eval().edges().size();
 			
 			Q cg = CommonQueries.cg(Common.toQ(function));
 			Q rcg = CommonQueries.rcg(Common.toQ(function));
@@ -39,7 +39,7 @@ public class Stats {
 			long nodesRcg = rcg.eval().nodes().size();
 			
 			
-			AtlasSet<Node> selectable = cfg.nodesTaggedWithAny("isLabel", XCSG.Loop, XCSG.ControlFlowCondition).eval().nodes();
+			AtlasSet<Node> selectable = cfgQ.nodesTaggedWithAny("isLabel", XCSG.Loop, XCSG.ControlFlowIfCondition, XCSG.ControlFlowSwitchCondition).eval().nodes();
 			long numCB = selectable.size();
 			
 			writer.write(function.getAttr(XCSG.name).toString() + "," + nodesCfg + "," + edgesCfg + "," + nodesCg + "," + nodesRcg + "," + numCB + "\n");
@@ -105,7 +105,7 @@ public class Stats {
 			
 			Map<Node, Node> map_parent = Structured.getParentMap(cfgQ.eval());
 			
-			AtlasSet<Node> allSelectable = cfgQ.nodes(XCSG.ControlFlowCondition, "LoopByLabel").eval().nodes();
+			AtlasSet<Node> allSelectable = cfgQ.nodesTaggedWithAny("isLabel", XCSG.Loop, XCSG.ControlFlowIfCondition, XCSG.ControlFlowSwitchCondition).eval().nodes();
 			
 			
 			long cntOuterBlock = 0;
