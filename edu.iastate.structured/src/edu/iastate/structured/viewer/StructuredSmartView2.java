@@ -150,6 +150,6 @@ public class StructuredSmartView2 extends FilteringAtlasSmartViewScript {
 
 	@Override
 	public String getTitle() {
-		return "Test-Structured Code View-Control Blocks";
+		return "TEST-Structured Code View-Control Blocks";
 	}
 }
