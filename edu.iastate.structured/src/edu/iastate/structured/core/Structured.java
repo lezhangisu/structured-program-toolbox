@@ -567,6 +567,9 @@ public class Structured {
 		}
 		Map<Node, Node> map_parent = new HashMap<Node, Node>();
 		for(Node n : map_subgraphs.keySet()) {
+			if(map_subgraphs.get(n).size()<2) {
+				continue;
+			}
 			for(Node m : map_subgraphs.get(n).get(1)) {
 				map_parent.put(m, n);
 			}
