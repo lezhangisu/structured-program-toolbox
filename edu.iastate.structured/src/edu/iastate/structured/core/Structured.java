@@ -25,7 +25,8 @@ import com.ensoftcorp.atlas.core.db.graph.Edge;
 
 public class Structured {
 	private static Map<Node, List<AtlasSet<Node>>> map_subgraphs = new HashMap<Node, List<AtlasSet<Node>>>(); // format: <Node controlFlowCondition, List<Q entry, Q body, Q exit> >
-//	private static Map<Node, Node> map_parent = new HashMap<Node, Node>(); // format: <ChildNode, ParentNode>
+	private static boolean DLI_done = false;
+	//	private static Map<Node, Node> map_parent = new HashMap<Node, Node>(); // format: <ChildNode, ParentNode>
 	
 	public static Graph test(Graph cfg, Node node) {
 		Q cfgQ = Common.toQ(cfg);
@@ -493,16 +494,27 @@ public class Structured {
 		return l;
 	}
 	
+	public static boolean runDLI() {
+		Log.info("DLI Starts");
+		com.ensoftcorp.open.jimple.commons.loops.DecompiledLoopIdentification.recoverLoops();
+		Log.info("DLI Finished");
+		return true;
+	}
+	
 	public static void analyze(Graph cfg) {
-		
+//		Log.info("Analysis Begins");
 		Q cfgQ = Common.toQ(cfg);
 		//1. get selectable nodes (DLI loop entry, control nodes, labels) and tag them
 		map_subgraphs.clear();
 //		map_parent.clear();
 //		Log.info("Analyze-DLI");
+		
 		// run DLI
-		com.ensoftcorp.open.jimple.commons.loops.DecompiledLoopIdentification.recoverLoops();
-
+		if(!DLI_done) {
+			DLI_done = runDLI();
+		}
+		
+		Log.info("Tag Selectable Begins");
 		// initialize a set with label nodes, DLI loop entry nodes, control statement nodes
 		AtlasSet<Node> selectable = cfgQ.nodesTaggedWithAny("isLabel", XCSG.Loop, XCSG.ControlFlowCondition).eval().nodes();
 
@@ -512,7 +524,7 @@ public class Structured {
 		}
 		
 		//2. for each selectable node, get block or module, store them in map
-		Q cfbe=cfgQ.edges(XCSG.ControlFlowBackEdge).retainEdges(); //Control flow back edge
+//		Q cfbe=cfgQ.edges(XCSG.ControlFlowBackEdge).retainEdges(); //Control flow back edge
 //		Q dagQ=cfgQ.differenceEdges(cfbe); // Control flow back edges removed
 		
 //		Log.info("Analyze-get block");

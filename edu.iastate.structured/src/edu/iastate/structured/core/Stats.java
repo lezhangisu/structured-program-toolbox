@@ -52,14 +52,13 @@ public class Stats {
 		FileWriter writer = new FileWriter(new File(filePath), true);
 		writer.write("Function, #_of_CB, #_of_GOTO, #_of_outerBlock\n");
 		
-		
+//		com.ensoftcorp.open.jimple.commons.loops.DecompiledLoopIdentification.recoverLoops();
 		//		get all functions with labels
 		Q app = Common.universe().nodes(XCSG.Project);
 		AtlasSet<Node> functionSet = app.contained().nodes(XCSG.Function).eval().nodes();
 		
 		
 		long cnt = 0;
-		boolean flag = false;
 		for(Node function: functionSet) {
 			cnt ++;
 			Log.info(cnt +  " | " + function.getAttr(XCSG.name).toString());
