@@ -121,6 +121,6 @@ public class StructuredParenthoodSmartView extends FilteringAtlasSmartViewScript
 
 	@Override
 	public String getTitle() {
-		return "Structured Code View - Parenthood";
+		return "TEST-Structured Code View-Parenthood";
 	}
 }
