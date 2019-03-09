@@ -282,6 +282,54 @@ public class LabelAnalyzer {
 		writer.close();
 		
 	}
+	
+	public static void writeGotoFunc() throws IOException {
+		// get saving directory
+		new LabelAnalyzer().createDirectory();
+		
+		//		get all functions with labels
+		AtlasSet<Node> function_w_label = Common.universe().nodes(XCSG.Project).contained().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
+		
+		int num = 0;
+		for(Node function: function_w_label) {
+			Q cfg = CommonQueries.cfg(Common.toQ(function));
+			
+			AtlasSet<Node> label_set = cfg.nodesTaggedWithAll("isLabel").eval().nodes();
+			AtlasSet<Node> goto_set = cfg.nodesTaggedWithAll(XCSG.GotoStatement).eval().nodes();
+		
+			Markup markup = new Markup();
+			markup.set(Common.toQ(goto_set), MarkupProperty.NODE_BACKGROUND_COLOR, Color.YELLOW.darker());
+			markup.set(Common.toQ(label_set), MarkupProperty.NODE_BACKGROUND_COLOR, Color.MAGENTA);
+			
+			// set file name
+			String sourceFile = getQualifiedFunctionName(function);
+			String methodName =  function.getAttr(XCSG.name).toString();
+			
+			// output CFG
+			saveDisplayCFG(cfg.eval(), num, sourceFile, methodName, markup, false);
+			num++;
+			
+			
+		}
+		
+	}
+	
+	public static void calcGoto() {
+		
+		AtlasSet<Node> function_w_label = Common.universe().nodes(XCSG.Project).contained().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
+		
+		for(Node function: function_w_label) {
+			Q cfg = CommonQueries.cfg(Common.toQ(function));
+			AtlasSet<Node> label_set = cfg.nodesTaggedWithAll("isLabel").eval().nodes();
+			
+			for(Node labelNode : label_set) {
+				AtlasSet<Node> predGotoSet = cfg.predecessors(Common.toQ(labelNode)).nodes(XCSG.GotoStatement).eval().nodes();
+				labelNode.tag("GotoCount_"+predGotoSet.size());
+			}
+			
+		}
+		Log.info("Done With Goto Count");
+	}
 
 
 }
