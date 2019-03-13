@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.awt.Color;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -331,5 +332,32 @@ public class LabelAnalyzer {
 		Log.info("Done With Goto Count");
 	}
 
+	public static void calcGoto(String filePath) throws IOException  {
+		FileWriter writer = new FileWriter(new File(filePath));
+		writer.write("function_name, label_node, goto_count, predecessor_count\n");
+		BufferedWriter br = new BufferedWriter(writer);
+		
+		AtlasSet<Node> function_w_label = Common.universe().nodes(XCSG.Project).contained().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
+		
+		for(Node function: function_w_label) {
+			Q cfg = CommonQueries.cfg(Common.toQ(function));
+			AtlasSet<Node> label_set = cfg.nodesTaggedWithAll("isLabel").eval().nodes();
+			
+			String function_name = function.getAttr(XCSG.name).toString();
+			
+			for(Node labelNode : label_set) {
+				AtlasSet<Node> predSet = cfg.predecessors(Common.toQ(labelNode)).eval().nodes();
+				AtlasSet<Node> predGotoSet = Common.toQ(predSet).nodes(XCSG.GotoStatement).eval().nodes();
+//				labelNode.tag("GotoCount_"+predGotoSet.size());
+
+				br.write(function_name + "," + labelNode.getAttr(XCSG.name).toString() + "," + predGotoSet.size() + "," + predSet.size() + "\n");
+				
+				br.flush();
+			}
+			
+		}
+		writer.close();
+		Log.info("Done With Goto Count");
+	}
 
 }
