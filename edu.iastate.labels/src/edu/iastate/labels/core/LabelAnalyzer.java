@@ -26,6 +26,8 @@ import com.ensoftcorp.atlas.core.script.CommonQueries;
 import com.ensoftcorp.atlas.core.xcsg.XCSG;
 import com.ensoftcorp.atlas.ui.viewer.graph.DisplayUtil;
 import com.ensoftcorp.atlas.ui.viewer.graph.SaveUtil;
+import com.ensoftcorp.open.pcg.common.PCGFactory;
+
 import edu.iastate.labels.core.VerificationProperties;
 
 import edu.iastate.labels.viewer.log.Log;
@@ -47,7 +49,7 @@ public class LabelAnalyzer {
 	 * <p>
 	 * 1- The {@link SourceCorrespondence}.
 	 */
-	private static final String GOTO_GRAPH_DIRECTORY_NAME_PATTERN = "labelModule_graphs";
+	private static String GOTO_GRAPH_DIRECTORY_NAME_PATTERN = "labelModule_graphs";
 	
 	/**
 	 * The directory where the verification graphs for the processed lock to be stored}.
@@ -358,6 +360,46 @@ public class LabelAnalyzer {
 		}
 		writer.close();
 		Log.info("Done With Goto Count");
+	}
+	
+	public static void writeLabelPCG() throws IOException {
+		GOTO_GRAPH_DIRECTORY_NAME_PATTERN = "writeLabelPCG";
+		
+		// get saving directory
+		new LabelAnalyzer().createDirectory();
+		
+		//		get all functions with labels
+		AtlasSet<Node> function_w_label = Common.universe().nodes(XCSG.Project).contained().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
+		
+		int num = 0;
+		for(Node function: function_w_label) {
+			num++;
+			Q cfg = CommonQueries.cfg(Common.toQ(function));
+			
+			AtlasSet<Node> label_set = cfg.nodesTaggedWithAll("isLabel").eval().nodes();
+//			AtlasSet<Node> goto_set = cfg.nodesTaggedWithAll(XCSG.GotoStatement).eval().nodes();
+		
+			Markup markup = new Markup();
+//			markup.set(Common.toQ(goto_set), MarkupProperty.NODE_BACKGROUND_COLOR, Color.YELLOW.darker());
+			markup.set(Common.toQ(label_set), MarkupProperty.NODE_BACKGROUND_COLOR, Color.MAGENTA);
+			
+			// set file name
+			String sourceFile = getQualifiedFunctionName(function);
+			String methodName =  function.getAttr(XCSG.name).toString();
+			
+			// output CFG
+			saveDisplayCFG(cfg.eval(), num, sourceFile, methodName, markup, false);
+			
+			
+			// output PCG
+			AtlasSet<Node> pcg_seed = cfg.nodes(XCSG.ControlFlowCondition).union(Common.toQ(label_set)).eval().nodes();
+			
+			Q pcg = PCGFactory.create(cfg, Common.toQ(pcg_seed)).getPCG();
+			saveDisplayPCG(pcg.eval(), num, sourceFile, methodName, markup, false);
+			
+			
+		}
+		
 	}
 
 }
