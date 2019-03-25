@@ -457,7 +457,7 @@ public class LabelAnalyzer {
 				}
 				
 				//check return
-				AtlasSet<Node> labelBodySet = dagQ.forward(Common.toQ(labelNode)).eval().nodes();
+				AtlasSet<Node> labelBodySet = dagQ.forward(Common.toQ(labelNode)).difference(Common.toQ(labelNode)).eval().nodes();
 				if(labelBodySet.size() == 1 && labelBodySet.getFirst().taggedWith(XCSG.controlFlowExitPoint)) {
 					returnLabel++;
 				}
