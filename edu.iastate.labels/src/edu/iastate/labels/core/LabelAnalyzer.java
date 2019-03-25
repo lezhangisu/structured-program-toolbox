@@ -377,11 +377,13 @@ public class LabelAnalyzer {
 			Q cfg = CommonQueries.cfg(Common.toQ(function));
 			
 			AtlasSet<Node> label_set = cfg.nodesTaggedWithAll("isLabel").eval().nodes();
-//			AtlasSet<Node> goto_set = cfg.nodesTaggedWithAll(XCSG.GotoStatement).eval().nodes();
-		
+			AtlasSet<Node> goto_set = cfg.nodesTaggedWithAll(XCSG.GotoStatement).eval().nodes();
+			AtlasSet<Node> return_set = cfg.nodesTaggedWithAll(XCSG.controlFlowExitPoint).eval().nodes();
+			
 			Markup markup = new Markup();
-//			markup.set(Common.toQ(goto_set), MarkupProperty.NODE_BACKGROUND_COLOR, Color.YELLOW.darker());
-			markup.set(Common.toQ(label_set), MarkupProperty.NODE_BACKGROUND_COLOR, Color.MAGENTA);
+			markup.set(Common.toQ(label_set), MarkupProperty.NODE_BACKGROUND_COLOR, Color.RED);
+			markup.set(Common.toQ(goto_set), MarkupProperty.NODE_BACKGROUND_COLOR, Color.YELLOW);
+			markup.set(Common.toQ(return_set), MarkupProperty.NODE_BACKGROUND_COLOR, Color.MAGENTA);
 			
 			// set file name
 			String sourceFile = getQualifiedFunctionName(function);
@@ -392,7 +394,8 @@ public class LabelAnalyzer {
 			
 			
 			// output PCG
-			AtlasSet<Node> pcg_seed = cfg.nodes(XCSG.ControlFlowCondition).union(Common.toQ(label_set)).eval().nodes();
+			Q nodeOfInterestQ = Common.toQ(label_set).union(Common.toQ(goto_set)).union(Common.toQ(return_set));
+			AtlasSet<Node> pcg_seed = cfg.nodes(XCSG.ControlFlowCondition).union(nodeOfInterestQ).eval().nodes();
 			
 			Q pcg = PCGFactory.create(cfg, Common.toQ(pcg_seed)).getPCG();
 			saveDisplayPCG(pcg.eval(), num, sourceFile, methodName, markup, false);
