@@ -401,5 +401,77 @@ public class LabelAnalyzer {
 		}
 		
 	}
+	
+	public static void writeLabelStats(String filePath) throws IOException {
+		// Write statistics for different categories of labels
+			
+		// get saving directory
+		new LabelAnalyzer().createDirectory();
+		
+		if(Common.universe().nodes("NATURAL_LOOP").eval().nodes().size()<1) {
+			com.ensoftcorp.open.jimple.commons.loops.DecompiledLoopIdentification.recoverLoops();
+			Log.info("DLI Done");
+		}else {
+			Log.info("No need for DLI");
+		}
+		
+		FileWriter writer = new FileWriter(new File(filePath), true);
+		writer.write("Function_number, Function_name, Total_labels, Exception_handling, Clean-up, Loop_creation, Return, Unreachable\n");
+		BufferedWriter br = new BufferedWriter(writer);
+		
+		//		get all functions with labels
+		AtlasSet<Node> function_w_label = Common.universe().nodes(XCSG.Project).contained().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
+		
+		int num = 0;
+		for(Node function: function_w_label) {
+			num++;
+			
+			int exception = 0;
+			int cleanUp = 0;
+			int loopCreate = 0;
+			int returnLabel = 0;
+			int unreachable = 0;
+			
+			Q cfgQ = CommonQueries.cfg(Common.toQ(function));
+			Q cfbeQ=cfgQ.edges(XCSG.ControlFlowBackEdge).retainEdges(); //Control flow back edge
+			Q dagQ=cfgQ.differenceEdges(cfbeQ); // Control flow back edges removed
+			
+			AtlasSet<Node> labelSet = cfgQ.nodesTaggedWithAll("isLabel").eval().nodes();
+			
+			for(Node labelNode : labelSet) {
+				AtlasSet<Node> predSet = dagQ.predecessors(Common.toQ(labelNode)).eval().nodes();
+				
+				//check exception handling
+				if(predSet.size()>0 && Common.toQ(predSet).nodes(XCSG.GotoStatement).eval().nodes().size() == predSet.size()) {
+					exception++;
+				}
+				
+				//check clean up
+				if(predSet.size()>0 && Common.toQ(predSet).nodes(XCSG.GotoStatement).eval().nodes().size() < predSet.size()) {
+					cleanUp++;
+				}
+				
+				//check loop creation
+				if(Common.toQ(labelNode).nodes(XCSG.Loop).eval().nodes().size()>0) {
+					loopCreate ++;
+				}
+				
+				//check return
+				AtlasSet<Node> labelBodySet = dagQ.forward(Common.toQ(labelNode)).eval().nodes();
+				if(labelBodySet.size() == 1 && labelBodySet.getFirst().taggedWith(XCSG.controlFlowExitPoint)) {
+					returnLabel++;
+				}
+				
+				//check unreachable
+				if(predSet.size() == 0) {
+					unreachable++;
+				}
+			}
+			br.write(num + "," + function.getAttr(XCSG.name).toString() + "," + labelSet.size() + "," + exception + "," + cleanUp + "," + loopCreate + "," + returnLabel + "," + unreachable + "\n");
+			br.flush();	
+			
+		}
+		writer.close();
+	}
 
 }
