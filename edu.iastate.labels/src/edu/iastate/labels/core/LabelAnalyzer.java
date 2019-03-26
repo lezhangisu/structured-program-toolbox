@@ -419,7 +419,7 @@ public class LabelAnalyzer {
 		}
 		
 		FileWriter writer = new FileWriter(new File(filePath), true);
-		writer.write("Function_number, Function_name, Total_labels, Exception_handling, Clean-up, Loop_creation, Return, Unreachable\n");
+		writer.write("Function_number, Function_name, Total_labels, Exit_control, Loop_creation, Error_exit, Redundant, Unreachable\n");
 		BufferedWriter br = new BufferedWriter(writer);
 		
 		//		get all functions with labels
@@ -429,10 +429,10 @@ public class LabelAnalyzer {
 		for(Node function: function_w_label) {
 			num++;
 			
-			int exception = 0;
-			int cleanUp = 0;
+			int exitCtrl = 0;
 			int loopCreate = 0;
-			int returnLabel = 0;
+			int errorExit = 0;
+			int redundant = 0;
 			int unreachable = 0;
 			
 			Q cfgQ = CommonQueries.cfg(Common.toQ(function));
@@ -445,13 +445,8 @@ public class LabelAnalyzer {
 				AtlasSet<Node> predSet = dagQ.predecessors(Common.toQ(labelNode)).eval().nodes();
 				
 				//check exception handling
-				if(predSet.size()>0 && Common.toQ(predSet).nodes(XCSG.GotoStatement).eval().nodes().size() == predSet.size()) {
-					exception++;
-				}
-				
-				//check clean up
-				if(predSet.size()>0 && Common.toQ(predSet).nodes(XCSG.GotoStatement).eval().nodes().size() < predSet.size()) {
-					cleanUp++;
+				if(predSet.size()>1 && Common.toQ(labelNode).nodes(XCSG.Loop).eval().nodes().size()==0) {
+					exitCtrl++;
 				}
 				
 				//check loop creation
@@ -459,10 +454,17 @@ public class LabelAnalyzer {
 					loopCreate ++;
 				}
 				
-				//check return
+				//check error exit
+//				AtlasSet<Node> labelBodySet = dagQ.forward(Common.toQ(labelNode)).difference(Common.toQ(labelNode)).eval().nodes();
+//				if(labelBodySet.size() == 1 && labelBodySet.getFirst().taggedWith(XCSG.controlFlowExitPoint)) {
+					
+//				}
+//				errorExit ++;
+				
+				//check redundant
 				AtlasSet<Node> labelBodySet = dagQ.forward(Common.toQ(labelNode)).difference(Common.toQ(labelNode)).eval().nodes();
-				if(labelBodySet.size() == 1 && labelBodySet.getFirst().taggedWith(XCSG.controlFlowExitPoint)) {
-					returnLabel++;
+				if(predSet.size()==1 && dagQ.predecessors(Common.toQ(labelBodySet)).eval().nodes().size()<2) {
+					redundant ++;
 				}
 				
 				//check unreachable
@@ -470,7 +472,7 @@ public class LabelAnalyzer {
 					unreachable++;
 				}
 			}
-			br.write(num + "," + function.getAttr(XCSG.name).toString() + "," + labelSet.size() + "," + exception + "," + cleanUp + "," + loopCreate + "," + returnLabel + "," + unreachable + "\n");
+			br.write(num + "," + function.getAttr(XCSG.name).toString() + "," + labelSet.size() + "," + exitCtrl + "," + loopCreate + "," + errorExit + "," + redundant + "," + unreachable + "\n");
 			br.flush();	
 			
 		}
