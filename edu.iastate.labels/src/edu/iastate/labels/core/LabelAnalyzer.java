@@ -435,6 +435,7 @@ public class LabelAnalyzer {
 			int redundant = 0;
 			int unreachable = 0;
 			
+			//CFG/DAG
 			Q cfgQ = CommonQueries.cfg(Common.toQ(function));
 			Q cfbeQ=cfgQ.edges(XCSG.ControlFlowBackEdge).retainEdges(); //Control flow back edge
 			Q dagQ=cfgQ.differenceEdges(cfbeQ); // Control flow back edges removed
@@ -455,11 +456,23 @@ public class LabelAnalyzer {
 				}
 				
 				//check error exit
-//				AtlasSet<Node> labelBodySet = dagQ.forward(Common.toQ(labelNode)).difference(Common.toQ(labelNode)).eval().nodes();
-//				if(labelBodySet.size() == 1 && labelBodySet.getFirst().taggedWith(XCSG.controlFlowExitPoint)) {
-					
-//				}
-//				errorExit ++;
+				
+				/////get map for loop children				
+				AtlasSet <Node> loopNodeSet = cfgQ.nodes(XCSG.Loop).eval().nodes();
+				
+				int count = 0;
+				
+				for(Node loopEntryNode : loopNodeSet) {
+					AtlasSet <Node> loopChildGotoNodeSet = Common.universe().edges(XCSG.LoopChild).
+			        		forward(Common.toQ(loopEntryNode)).retainNodes().nodes(XCSG.GotoStatement).eval().nodes();
+					if(Common.toQ(loopChildGotoNodeSet).intersection(dagQ.predecessors(Common.toQ(labelNode))).eval().nodes().size()>0) {
+						count ++;
+					}
+				}
+				
+				if(count > 1) {
+					errorExit ++;
+				}
 				
 				//check redundant
 				AtlasSet<Node> labelBodySet = dagQ.forward(Common.toQ(labelNode)).difference(Common.toQ(labelNode)).eval().nodes();
@@ -473,6 +486,64 @@ public class LabelAnalyzer {
 				}
 			}
 			br.write(num + "," + function.getAttr(XCSG.name).toString() + "," + labelSet.size() + "," + exitCtrl + "," + loopCreate + "," + errorExit + "," + redundant + "," + unreachable + "\n");
+			br.flush();	
+			
+		}
+		writer.close();
+	}
+	
+	public static void writeBasicStats(String filePath) throws IOException {
+		// Write statistics for different categories of labels
+			
+		// get saving directory
+		new LabelAnalyzer().createDirectory();
+		
+		if(Common.universe().nodes("NATURAL_LOOP").eval().nodes().size()<1) {
+			com.ensoftcorp.open.jimple.commons.loops.DecompiledLoopIdentification.recoverLoops();
+			Log.info("DLI Done");
+		}else {
+			Log.info("No need for DLI");
+		}
+		
+		FileWriter writer = new FileWriter(new File(filePath), true);
+		writer.write("Function_number, Function_name, nodes_CFG, edges_CFG, gotos, labels, CtrlBlks, nodes_PCG, edges_PCG\n");
+		BufferedWriter br = new BufferedWriter(writer);
+		
+		//		get all functions with labels
+		AtlasSet<Node> function_w_label = Common.universe().nodes(XCSG.Project).contained().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
+		
+		int num = 0;
+		for(Node function: function_w_label) {
+			num++;
+			
+			//CFG/DAG
+			Q cfgQ = CommonQueries.cfg(Common.toQ(function));
+//			Q cfbeQ=cfgQ.edges(XCSG.ControlFlowBackEdge).retainEdges(); //Control flow back edge
+//			Q dagQ=cfgQ.differenceEdges(cfbeQ); // Control flow back edges removed
+			
+			//PCG
+			AtlasSet<Node> label_set = cfgQ.nodes("isLabel").eval().nodes();
+			AtlasSet<Node> goto_set = cfgQ.nodes(XCSG.GotoStatement).eval().nodes();
+			AtlasSet<Node> return_set = cfgQ.nodes(XCSG.controlFlowExitPoint).eval().nodes();
+			
+			Q nodeOfInterestQ = Common.toQ(label_set).union(Common.toQ(goto_set)).union(Common.toQ(return_set));
+			AtlasSet<Node> pcg_seed = cfgQ.nodes(XCSG.ControlFlowCondition).union(nodeOfInterestQ).eval().nodes();
+			Q pcgQ = PCGFactory.create(cfgQ, Common.toQ(pcg_seed)).getPCG();
+			
+			AtlasSet<Node> gotoSet = cfgQ.nodes(XCSG.GotoStatement).eval().nodes();
+			AtlasSet<Node> labelSet = cfgQ.nodes("isLabel").eval().nodes();
+			AtlasSet<Node> cbEntrySet = cfgQ.nodesTaggedWithAny(XCSG.ControlFlowCondition, XCSG.Loop).eval().nodes();
+			
+			long nodes_CFG = cfgQ.eval().nodes().size();
+			long edges_CFG = cfgQ.eval().edges().size();
+			long gotos = gotoSet.size();
+			long labels = labelSet.size();
+			long CtrlBlks = cbEntrySet.size();
+			long nodes_PCG = pcgQ.eval().nodes().size();
+			long edges_PCG = pcgQ.eval().edges().size();
+			
+			
+			br.write(num + "," + function.getAttr(XCSG.name).toString() + "," + nodes_CFG + "," + edges_CFG + "," + gotos + "," + labels + "," + CtrlBlks + "," + nodes_PCG + "," + edges_PCG + "\n");
 			br.flush();	
 			
 		}
