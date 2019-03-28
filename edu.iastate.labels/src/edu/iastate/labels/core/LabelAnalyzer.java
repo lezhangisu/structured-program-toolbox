@@ -549,5 +549,69 @@ public class LabelAnalyzer {
 		}
 		writer.close();
 	}
+	
+	public static void writeSpaghetti() throws IOException {
+		//write spaghetti code defined by 2015 paper, both CFG and PCG
+		GOTO_GRAPH_DIRECTORY_NAME_PATTERN = "writeSpaghetti";
+		
+		// get saving directory
+		new LabelAnalyzer().createDirectory();
+		
+		//		get all functions with labels
+		AtlasSet<Node> function_w_label = Common.universe().nodes(XCSG.Project).contained().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
+		
+		int num = 0;
+		for(Node function: function_w_label) {
+			num++;
+			Q cfgQ = CommonQueries.cfg(Common.toQ(function));
+			Q cfbeQ=cfgQ.edges(XCSG.ControlFlowBackEdge).retainEdges(); //Control flow back edge
+			Q dagQ=cfgQ.differenceEdges(cfbeQ); // Control flow back edges removed
+			
+			AtlasSet<Node> labelSet = cfgQ.nodes("isLabel").eval().nodes();
+			
+			boolean flag = false;
+			
+			for(Node labelNode : labelSet) {
+				AtlasSet<Node> labelBodyNodeSet = dagQ.forward(Common.toQ(labelNode)).eval().nodes();
+				AtlasSet<Node> labelPred = cfgQ.predecessors(Common.toQ(labelNode)).eval().nodes();
+				if(Common.toQ(labelBodyNodeSet).difference(Common.toQ(labelPred)).nodes(XCSG.GotoStatement).eval().nodes().size() > 0) {
+					// if found at least one label body with goto, print it
+					flag = true;
+					break;
+				}
+			}
+			
+			if(!flag) {
+				continue;
+			}
+			
+			AtlasSet<Node> gotoSet = cfgQ.nodesTaggedWithAll(XCSG.GotoStatement).eval().nodes();
+			AtlasSet<Node> returnSet = cfgQ.nodesTaggedWithAll(XCSG.controlFlowExitPoint).eval().nodes();
+			
+			Markup markup = new Markup();
+			markup.set(Common.toQ(labelSet), MarkupProperty.NODE_BACKGROUND_COLOR, Color.RED);
+			markup.set(Common.toQ(gotoSet), MarkupProperty.NODE_BACKGROUND_COLOR, Color.YELLOW);
+			markup.set(Common.toQ(returnSet), MarkupProperty.NODE_BACKGROUND_COLOR, Color.MAGENTA);
+			
+			
+			// set file name
+			String sourceFile = getQualifiedFunctionName(function);
+			String methodName =  function.getAttr(XCSG.name).toString();
+			
+			// output CFG
+			saveDisplayCFG(cfgQ.eval(), num, sourceFile, methodName, markup, false);
+			
+			
+			// output PCG
+			Q nodeOfInterestQ = Common.toQ(labelSet).union(Common.toQ(gotoSet)).union(Common.toQ(returnSet));
+			AtlasSet<Node> pcg_seed = cfgQ.nodes(XCSG.ControlFlowCondition).union(nodeOfInterestQ).eval().nodes();
+			
+			Q pcg = PCGFactory.create(cfgQ, Common.toQ(pcg_seed)).getPCG();
+			saveDisplayPCG(pcg.eval(), num, sourceFile, methodName, markup, false);
+			
+			
+		}
+		
+	}
 
 }
