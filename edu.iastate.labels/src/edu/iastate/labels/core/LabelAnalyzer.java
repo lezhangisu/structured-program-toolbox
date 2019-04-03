@@ -405,6 +405,49 @@ public class LabelAnalyzer {
 		
 	}
 	
+	public static void writeAllCFG() throws IOException {
+		GOTO_GRAPH_DIRECTORY_NAME_PATTERN = "writeAllCFG";
+		
+		// get saving directory
+		new LabelAnalyzer().createDirectory();
+		
+		//		get all functions with labels
+		AtlasSet<Node> functionSet = Common.universe().nodes(XCSG.Function).eval().nodes();
+		
+		int num = 0;
+		for(Node function: functionSet) {
+			num++;
+			Q cfg = CommonQueries.cfg(Common.toQ(function));
+			
+			AtlasSet<Node> label_set = cfg.nodesTaggedWithAll("isLabel").eval().nodes();
+			AtlasSet<Node> goto_set = cfg.nodesTaggedWithAll(XCSG.GotoStatement).eval().nodes();
+			AtlasSet<Node> return_set = cfg.nodesTaggedWithAll(XCSG.controlFlowExitPoint).eval().nodes();
+			
+			Markup markup = new Markup();
+			markup.set(Common.toQ(label_set), MarkupProperty.NODE_BACKGROUND_COLOR, Color.RED);
+			markup.set(Common.toQ(goto_set), MarkupProperty.NODE_BACKGROUND_COLOR, Color.YELLOW);
+			markup.set(Common.toQ(return_set), MarkupProperty.NODE_BACKGROUND_COLOR, Color.MAGENTA);
+			
+			// set file name
+			String sourceFile = getQualifiedFunctionName(function);
+			String methodName =  function.getAttr(XCSG.name).toString();
+			
+			// output CFG
+			saveDisplayCFG(cfg.eval(), num, sourceFile, methodName, markup, false);
+			
+			
+			// output PCG
+//			Q nodeOfInterestQ = Common.toQ(label_set).union(Common.toQ(goto_set)).union(Common.toQ(return_set));
+//			AtlasSet<Node> pcg_seed = cfg.nodes(XCSG.ControlFlowCondition).union(nodeOfInterestQ).eval().nodes();
+//			
+//			Q pcg = PCGFactory.create(cfg, Common.toQ(pcg_seed)).getPCG();
+//			saveDisplayPCG(pcg.eval(), num, sourceFile, methodName, markup, false);
+			
+			
+		}
+		
+	}
+	
 	public static void writeLabelStats(String filePath) throws IOException {
 		// Write statistics for different categories of labels
 			
