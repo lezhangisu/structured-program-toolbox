@@ -483,12 +483,23 @@ public class LabelAnalyzer {
 			Q cfbeQ=cfgQ.edges(XCSG.ControlFlowBackEdge).retainEdges(); //Control flow back edge
 			Q dagQ=cfgQ.differenceEdges(cfbeQ); // Control flow back edges removed
 			
+			//get map for loop children				
+			AtlasSet <Node> loopNodeSet = cfgQ.nodes(XCSG.Loop).eval().nodes();
+//			Map<Node, AtlasSet<Node>> loopChildMap = new HashMap<Node, AtlasSet<Node>>();
+						
+//			for(Node loopEntryNode : loopNodeSet) {
+				AtlasSet <Node> loopChildNodeSet = Common.universe().edges(XCSG.LoopChild).
+		        		forward(Common.toQ(loopNodeSet)).retainNodes().eval().nodes();
+//				loopChildMap.put(loopEntryNode, loopChildGotoNodeSet);
+//			}
+			
+			//go through all labels
 			AtlasSet<Node> labelSet = cfgQ.nodesTaggedWithAll("isLabel").eval().nodes();
 			
 			for(Node labelNode : labelSet) {
 				AtlasSet<Node> predSet = dagQ.predecessors(Common.toQ(labelNode)).eval().nodes();
 				
-				//check exception handling
+				//check flexible merge
 				if(predSet.size()>1 && Common.toQ(labelNode).nodes(XCSG.Loop).eval().nodes().size()==0) {
 					exitCtrl++;
 				}
@@ -499,21 +510,8 @@ public class LabelAnalyzer {
 				}
 				
 				//check error exit
-				
-				/////get map for loop children				
-				AtlasSet <Node> loopNodeSet = cfgQ.nodes(XCSG.Loop).eval().nodes();
-				
-				int count = 0;
-				
-				for(Node loopEntryNode : loopNodeSet) {
-					AtlasSet <Node> loopChildGotoNodeSet = Common.universe().edges(XCSG.LoopChild).
-			        		forward(Common.toQ(loopEntryNode)).retainNodes().nodes(XCSG.GotoStatement).eval().nodes();
-					if(Common.toQ(loopChildGotoNodeSet).intersection(dagQ.predecessors(Common.toQ(labelNode))).eval().nodes().size()>0) {
-						count ++;
-					}
-				}
-				
-				if(count > 1) {
+				//// Loop Child ends with breaks and GOTOs, so just check if the predecessor of the label is in any of the loop child GOTOs
+				if(Common.toQ(predSet).intersection(Common.toQ(loopChildNodeSet).nodes(XCSG.GotoStatement)).eval().nodes().size() > 0) {
 					errorExit ++;
 				}
 				
