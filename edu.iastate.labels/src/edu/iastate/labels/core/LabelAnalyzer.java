@@ -466,7 +466,7 @@ public class LabelAnalyzer {
 		BufferedWriter br = new BufferedWriter(writer);
 		
 		//		get all functions with labels
-		AtlasSet<Node> function_w_label = Common.universe().nodes(XCSG.Project).contained().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
+		AtlasSet<Node> function_w_label = Common.universe().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
 		
 		int num = 0;
 		for(Node function: function_w_label) {
@@ -511,7 +511,7 @@ public class LabelAnalyzer {
 				
 				//check error exit
 				//// Loop Child ends with breaks and GOTOs, so just check if the predecessor of the label is in any of the loop child GOTOs
-				if(Common.toQ(predSet).intersection(Common.toQ(loopChildNodeSet).nodes(XCSG.GotoStatement)).eval().nodes().size() > 0) {
+				if(!loopChildNodeSet.contains(labelNode)&&Common.toQ(predSet).intersection(Common.toQ(loopChildNodeSet).nodes(XCSG.GotoStatement)).eval().nodes().size() > 0) {
 					errorExit ++;
 				}
 				
@@ -531,6 +531,368 @@ public class LabelAnalyzer {
 			
 		}
 		writer.close();
+	}
+	
+	
+	private static Set<Integer> writeLabelStatsNewHelper(int flag, Q cfgQ, Q dagQ, Node labelNode, AtlasSet<Node> predSetDag, AtlasSet <Node> loopChildNodeSet) {
+		// input label flag: -2, -1 (miscellaneous), 0 (no entry), 1 (single entry), 2 (multiple entry)
+		// output: -1 (error), 0 (Unreachable), 1 (Loop Creation), 2 (Flexible Merge), 3 (Flexible loop exit), 4 (Redundant)
+		Set<Integer> result = new HashSet<Integer>();
+		
+		if(flag < 0) {
+			result.add(-1);
+			return result;
+		}else if(flag == 0) {
+			result.add(0);
+			return result;
+		}
+		
+		if(flag == 2) { // multiple entry label
+			if(labelNode.taggedWith(XCSG.Loop) && (cfgQ.predecessors(Common.toQ(labelNode)).nodes(XCSG.GotoStatement).intersection(Common.toQ(loopChildNodeSet))).eval().nodes().size() > 0) {
+				// label tagged with XCSG.Loop AND at least one of its GOTOs is loop child
+				result.add(1); // loop creation
+			}else if(!labelNode.taggedWith(XCSG.Loop) && Common.toQ(predSetDag).difference(Common.toQ(loopChildNodeSet)).eval().nodes().size() > 0){
+				// if not loop, AND merge, AND not all predecessors come from loop body
+				result.add(2); // flexible merge
+			}
+			
+			// flexible loop exit
+			if(!loopChildNodeSet.contains(labelNode)&&Common.toQ(predSetDag).intersection(Common.toQ(loopChildNodeSet).nodes(XCSG.GotoStatement)).eval().nodes().size() > 0) {
+				result.add(3);
+			}
+			
+		}else if(flag == 1) {  // single entry label
+			
+			// flexible loop exit
+			if(!loopChildNodeSet.contains(labelNode)&&Common.toQ(predSetDag).intersection(Common.toQ(loopChildNodeSet).nodes(XCSG.GotoStatement)).eval().nodes().size() > 0) {
+				result.add(3);
+			}
+			
+			// redundant check
+			AtlasSet<Node> labelBodySet = dagQ.forward(Common.toQ(labelNode)).eval().nodes();
+			AtlasSet<Node> labelBodyEntryPredSet = dagQ.predecessors(Common.toQ(labelBodySet)).difference(Common.toQ(labelBodySet)).eval().nodes();
+			if(labelBodyEntryPredSet.size()<2 && !result.contains(3)) {
+				// if no other entry to the label module, AND not loop exit, it is redundant. 
+				result.add(4);;
+			}
+			
+			// flexible merge entry node check
+			AtlasSet<Node> labelBodyEntrySet = dagQ.successors(Common.toQ(labelBodyEntryPredSet)).intersection(Common.toQ(labelBodySet)).eval().nodes();
+			int lbeFlag = 0;
+			if(labelBodyEntrySet.size() < 2) {
+				lbeFlag = 1;
+			}else {
+				for(Node lbe : labelBodyEntrySet) {
+					if(!lbe.taggedWith("isLabel")) {
+						lbeFlag = 1;
+						break;
+					}
+				}
+			}
+			if(lbeFlag == 0) {
+				result.add(2);;
+			}
+			
+		}
+		
+		if(result.size() == 0) {
+			result.add(-1);
+		}
+		
+		return result;
+	}
+	
+	private static void tagLabelCategoryNewHelper(int flag, Q cfgQ, Q dagQ, Node labelNode, AtlasSet<Node> predSetDag, AtlasSet <Node> loopChildNodeSet) {
+		// input label flag: -2, -1 (miscellaneous), 0 (no entry), 1 (single entry), 2 (multiple entry)
+		// Tags:
+		final String MISC = "CATEGORY_Misc";
+		final String UNREACH = "CATEGORY_Unreachable";
+		final String LOOP = "CATEGORY_LoopCreation";
+		final String FLEXMERGE = "CATEGORY_FlexMerge";
+		final String LOOPEXIT = "CATEGORY_FlexLoopExit";
+		final String REDUND = "CATEGORY_Redundant";
+		
+		// output: -1 (error), 0 (Unreachable), 1 (Loop Creation), 2 (Flexible Merge), 3 (Flexible loop exit), 4 (Redundant)
+//		Set<Integer> result = new HashSet<Integer>();
+		boolean hasTag = false;
+		if(flag < 0) {
+			labelNode.tag(MISC);
+			return;
+		}else if(flag == 0) {
+			labelNode.tag(UNREACH);
+			return;
+		}
+		
+		if(flag == 2) { // multiple entry label
+			if(labelNode.taggedWith(XCSG.Loop) && (cfgQ.predecessors(Common.toQ(labelNode)).nodes(XCSG.GotoStatement).intersection(Common.toQ(loopChildNodeSet))).eval().nodes().size() > 0) {
+				// label tagged with XCSG.Loop AND at least one of its GOTOs is loop child
+				labelNode.tag(LOOP); // loop creation
+				hasTag = true;
+			}else if(!labelNode.taggedWith(XCSG.Loop) && Common.toQ(predSetDag).nodes(XCSG.GotoStatement).difference(Common.toQ(loopChildNodeSet)).eval().nodes().size() > 0){
+				// if not loop, AND merge, AND not all predecessor GOTOs come from loop body
+				labelNode.tag(FLEXMERGE); // flexible merge
+				hasTag = true;
+			}
+			
+			// flexible loop exit
+			if(!loopChildNodeSet.contains(labelNode) && Common.toQ(predSetDag).intersection(Common.toQ(loopChildNodeSet).nodes(XCSG.GotoStatement)).eval().nodes().size() > 0) {
+				labelNode.tag(LOOPEXIT); // flexible loop exit
+				hasTag = true; 
+			}
+			
+		}else if(flag == 1) {  // single entry label
+			
+			// flexible loop exit
+			if(!loopChildNodeSet.contains(labelNode) && Common.toQ(predSetDag).intersection(Common.toQ(loopChildNodeSet).nodes(XCSG.GotoStatement)).eval().nodes().size() > 0) {
+				labelNode.tag(LOOPEXIT); // flexible loop exit
+				hasTag = true; 
+			}
+			
+			// redundant check
+			AtlasSet<Node> labelBodySet = dagQ.forward(Common.toQ(labelNode)).eval().nodes();
+			AtlasSet<Node> labelBodyEntryPredSet = dagQ.predecessors(Common.toQ(labelBodySet)).difference(Common.toQ(labelBodySet)).eval().nodes();
+			if(labelBodyEntryPredSet.size()<2 && !labelNode.taggedWith(LOOPEXIT)) {
+				// if no other entry to the label module, AND not loop exit, it is redundant. 
+				labelNode.tag(REDUND); // redundant
+				hasTag = true;
+			}
+			
+			// flexible merge entry node check
+			AtlasSet<Node> labelBodyEntrySet = dagQ.successors(Common.toQ(labelBodyEntryPredSet)).intersection(Common.toQ(labelBodySet)).eval().nodes();
+			int lbeFlag = 0;
+			if(labelBodyEntrySet.size() < 2) {
+				lbeFlag = 1;
+			}else {
+				for(Node lbe : labelBodyEntrySet) {
+					if(!lbe.taggedWith("isLabel")) {
+						lbeFlag = 1;
+						break;
+					}
+				}
+			}
+			if(lbeFlag == 0) {
+				labelNode.tag(FLEXMERGE); // flexible merge
+				hasTag = true;
+			}
+			
+		}
+		
+		if(!hasTag) { // if still not tagged, tag as miscellaneous
+			labelNode.tag(MISC);
+		}
+		return;
+	}
+	
+	public static void tagLabelCategory() {
+		
+		// run DLI
+		if(Common.universe().nodes("NATURAL_LOOP").eval().nodes().size()<1) {
+			com.ensoftcorp.open.jimple.commons.loops.DecompiledLoopIdentification.recoverLoops();
+			Log.info("DLI Done");
+		}else {
+			Log.info("No need for DLI");
+		}
+		
+		// get all functions with labels
+		AtlasSet<Node> labelFunctionSet = Common.universe().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
+		
+		
+		AtlasSet<Node> unreachableSet = new AtlasHashSet<Node>();
+		AtlasSet<Node> singleEntryLabelSet = new AtlasHashSet<Node>();
+		AtlasSet<Node> multiEntryLabelSet = new AtlasHashSet<Node>();
+		AtlasSet<Node> miscLabelSet = new AtlasHashSet<Node>();
+		
+		for(Node function: labelFunctionSet) {
+			
+			//CFG/DAG
+			Q cfgQ = CommonQueries.cfg(Common.toQ(function));
+			Q cfbeQ=cfgQ.edges(XCSG.ControlFlowBackEdge).retainEdges(); //Control flow back edge
+			Q dagQ=cfgQ.differenceEdges(cfbeQ); // Control flow back edges removed
+			
+			//get map for loop children				
+			AtlasSet <Node> loopNodeSet = cfgQ.nodes(XCSG.Loop).eval().nodes();
+						
+			AtlasSet <Node> loopChildNodeSet = Common.universe().edges(XCSG.LoopChild).
+		        forward(Common.toQ(loopNodeSet)).retainNodes().eval().nodes();
+			
+			//go through all labels
+			AtlasSet<Node> labelSet = cfgQ.nodesTaggedWithAll("isLabel").eval().nodes();
+			
+			int flag;
+			for(Node labelNode : labelSet) {
+				flag = -2;
+				AtlasSet<Node> predSetDag = dagQ.predecessors(Common.toQ(labelNode)).eval().nodes();
+				AtlasSet<Node> predSetCfg = cfgQ.predecessors(Common.toQ(labelNode)).eval().nodes();
+				if(predSetCfg.size() == 0) {
+					unreachableSet.add(labelNode);
+					flag = 0;
+				}else if(predSetCfg.size() == 1) {
+					singleEntryLabelSet.add(labelNode);
+					flag = 1;
+				}else if(predSetCfg.size() > 1){
+					multiEntryLabelSet.add(labelNode);
+					flag = 2;
+				}else {
+					miscLabelSet.add(labelNode);
+					flag = -1;
+				}
+				
+				tagLabelCategoryNewHelper(flag, cfgQ, dagQ, labelNode, predSetDag, loopChildNodeSet);
+			
+			}
+		}
+		Log.info("NoEntry " + unreachableSet.size() + "; SingleEntry " + singleEntryLabelSet.size() + "; MultiEntry " + multiEntryLabelSet.size() + "; misc " + miscLabelSet.size());
+		
+	}
+	
+	public static void writeLabelCategoryByFunc(String filePath) throws IOException {
+		
+		final String MISC = "CATEGORY_Misc";
+		final String UNREACH = "CATEGORY_Unreachable";
+		final String LOOP = "CATEGORY_LoopCreation";
+		final String FLEXMERGE = "CATEGORY_FlexMerge";
+		final String LOOPEXIT = "CATEGORY_FlexLoopExit";
+		final String REDUND = "CATEGORY_Redundant";
+		
+		// create directory
+		new LabelAnalyzer().createDirectory();
+		
+		if(Common.universe().nodes(MISC, UNREACH, LOOP, FLEXMERGE, LOOPEXIT, REDUND).eval().nodes().size()<1) {
+			Log.info("Start Tagging...");
+			tagLabelCategory();
+			Log.info("Tagging Done.");
+		}else {
+			Log.info("Already Categorized.");
+		}
+		
+		FileWriter writer = new FileWriter(new File(filePath), true);
+		writer.write("Function_number, Function_name, Total_labels, Flex_Merge, Loop_creation, Flex_Loop_Exit, Redundant, Unreachable, Misc\n");
+		BufferedWriter br = new BufferedWriter(writer);
+		
+//		get all functions with labels
+		AtlasSet<Node> labelFunctionSet = Common.universe().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
+		
+		int num = 0;
+		for(Node function: labelFunctionSet) {
+			num++;
+			//CFG/DAG
+			Q cfgQ = CommonQueries.cfg(Common.toQ(function));
+			
+			//go through all labels
+			AtlasSet<Node> labelSet = cfgQ.nodesTaggedWithAll("isLabel").eval().nodes();
+			
+			// count
+			int flexMerge = 0;
+			int loopCreate = 0;
+			int flexLoopExit = 0;
+			int redundant = 0;
+			int unreachable = 0;
+			int misc = 0;
+			
+			for(Node labelNode : labelSet) {
+				if(labelNode.taggedWith(FLEXMERGE)) {
+					flexMerge++;
+				}
+				if(labelNode.taggedWith(LOOP)) {
+					loopCreate++;
+				}
+				if(labelNode.taggedWith(LOOPEXIT)) {
+					flexLoopExit++;
+				}
+				if(labelNode.taggedWith(REDUND)) {
+					redundant++;
+				}
+				if(labelNode.taggedWith(UNREACH)) {
+					unreachable++;
+				}
+				if(labelNode.taggedWith(MISC)){
+					misc++;
+				}
+			}
+			
+			// output
+			br.write(num + "," + function.getAttr(XCSG.name).toString() + "," + labelSet.size() + "," + flexMerge + "," + loopCreate + "," + flexLoopExit + "," + redundant + "," + unreachable + "," + misc + "\n");
+			br.flush();
+		}
+		writer.close();
+		
+	}
+	
+public static void writeLabelCategoryByLabel(String filePath) throws IOException {
+		
+		final String MISC = "CATEGORY_Misc";
+		final String UNREACH = "CATEGORY_Unreachable";
+		final String LOOP = "CATEGORY_LoopCreation";
+		final String FLEXMERGE = "CATEGORY_FlexMerge";
+		final String LOOPEXIT = "CATEGORY_FlexLoopExit";
+		final String REDUND = "CATEGORY_Redundant";
+		
+		// create directory
+		new LabelAnalyzer().createDirectory();
+		
+		if(Common.universe().nodes(MISC, UNREACH, LOOP, FLEXMERGE, LOOPEXIT, REDUND).eval().nodes().size()<1) {
+			Log.info("Start Tagging...");
+			tagLabelCategory();
+			Log.info("Tagging Done.");
+		}else {
+			Log.info("Already Categorized.");
+		}
+		
+		FileWriter writer = new FileWriter(new File(filePath), true);
+		writer.write("Function_number, Function_name, Total_labels, Label_number, Label_name, Flex_Merge, Loop_creation, Flex_Loop_Exit, Redundant, Unreachable, Misc\n");
+		BufferedWriter br = new BufferedWriter(writer);
+		
+		//	get all functions with labels
+		AtlasSet<Node> labelFunctionSet = Common.universe().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
+		
+		int numFunc = 0;
+		for(Node function: labelFunctionSet) {
+			numFunc++;
+			//CFG/DAG
+			Q cfgQ = CommonQueries.cfg(Common.toQ(function));
+			
+			//go through all labels
+			AtlasSet<Node> labelSet = cfgQ.nodesTaggedWithAll("isLabel").eval().nodes();
+			
+			
+			int numLabel = 0;
+			for(Node labelNode : labelSet) {
+				numLabel++;
+				// count
+				int flexMerge = 0;
+				int loopCreate = 0;
+				int flexLoopExit = 0;
+				int redundant = 0;
+				int unreachable = 0;
+				int misc = 0;
+				
+				if(labelNode.taggedWith(FLEXMERGE)) {
+					flexMerge++;
+				}
+				if(labelNode.taggedWith(LOOP)) {
+					loopCreate++;
+				}
+				if(labelNode.taggedWith(LOOPEXIT)) {
+					flexLoopExit++;
+				}
+				if(labelNode.taggedWith(REDUND)) {
+					redundant++;
+				}
+				if(labelNode.taggedWith(UNREACH)) {
+					unreachable++;
+				}
+				if(labelNode.taggedWith(MISC)){
+					misc++;
+				}
+				
+				String labelNumber = "" + numFunc + "_" + numLabel;
+				// output
+				br.write(numFunc + "," + function.getAttr(XCSG.name).toString() + "," + labelSet.size() + "," + labelNumber + "," + labelNode.getAttr(XCSG.name).toString() + "," + flexMerge + "," + loopCreate + "," + flexLoopExit + "," + redundant + "," + unreachable + "," + misc + "\n");
+			}
+			br.flush();
+		}
+		writer.close();
+		
 	}
 	
 	public static void writeBasicStats(String filePath) throws IOException {
