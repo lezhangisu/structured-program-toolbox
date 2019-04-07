@@ -628,15 +628,17 @@ public class LabelAnalyzer {
 				// label tagged with XCSG.Loop AND at least one of its GOTOs is loop child
 				labelNode.tag(LOOP); // loop creation
 				hasTag = true;
-			}else if(!labelNode.taggedWith(XCSG.Loop) && loopChildNodeSet.contains(labelNode)) {
-				// if it is not loop header, but one of the loop child, it is a flex merge
-				labelNode.tag(FLEXMERGE); // flexible merge
-				hasTag = true;
-			}else if(!labelNode.taggedWith(XCSG.Loop) 
-					&& (!loopChildNodeSet.contains(labelNode) && Common.toQ(predSetDag).nodes(XCSG.GotoStatement).difference(Common.toQ(loopChildNodeSet)).eval().nodes().size() > 0)){
-				// if not loop header, AND merge, AND not all predecessor GOTOs come from loop body
-				labelNode.tag(FLEXMERGE); // flexible merge
-				hasTag = true;
+			}else if(!labelNode.taggedWith(XCSG.Loop)) {
+				// if it is not loop header
+				if(loopChildNodeSet.contains(labelNode)) {
+					// if it is a loop child
+					labelNode.tag(FLEXMERGE); // flexible merge
+					hasTag = true;
+				}else if(Common.toQ(predSetDag).nodes(XCSG.GotoStatement).difference(Common.toQ(loopChildNodeSet)).eval().nodes().size() > 0) {
+					// if not a loop child, AND has non-loopChild predecessors) 
+					labelNode.tag(FLEXMERGE); // flexible merge
+					hasTag = true;	
+				}
 			}
 			
 			// flexible loop exit
