@@ -72,8 +72,8 @@ public class LabelAnalyzer {
 	 * The following is the parts of the name:
 	 * 1- The method name corresponding to the CFG.
 	 */
-	private static final String CFG_GRAPH_FILE_NAME_PATTERN = "%s-CFG@%s@%s@%s";
-	private static final String PCG_GRAPH_FILE_NAME_PATTERN = "%s-PCG@%s@%s@%s";
+	private static final String CFG_GRAPH_FILE_NAME_PATTERN = "%s-CFG@%s%s";
+	private static final String PCG_GRAPH_FILE_NAME_PATTERN = "%s-PCG@%s%s";
 	
 	public LabelAnalyzer()
 	{
@@ -87,7 +87,9 @@ public class LabelAnalyzer {
         }
             
         try{
-            String cfgFileName = String.format(CFG_GRAPH_FILE_NAME_PATTERN, num, sourceFile, methodName, VerificationProperties.getGraphImageFileNameExtension());
+//            String cfgFileName = String.format(CFG_GRAPH_FILE_NAME_PATTERN, num, sourceFile, methodName, VerificationProperties.getGraphImageFileNameExtension());
+            // getQualifiedName() already have the package@file@function as name, so methodName is not used here
+        	String cfgFileName = String.format(CFG_GRAPH_FILE_NAME_PATTERN, num, sourceFile, VerificationProperties.getGraphImageFileNameExtension());
             SaveUtil.saveGraph(new File(currentgotoGraphsOutputDirectory, cfgFileName), cfgGraph, markup).join();
         } catch (InterruptedException e) {}
             
@@ -99,7 +101,9 @@ public class LabelAnalyzer {
         }
             
         try{
-            String pcgFileName = String.format(PCG_GRAPH_FILE_NAME_PATTERN, num, sourceFile, methodName, VerificationProperties.getGraphImageFileNameExtension());
+//            String pcgFileName = String.format(PCG_GRAPH_FILE_NAME_PATTERN, num, sourceFile, methodName, VerificationProperties.getGraphImageFileNameExtension());
+        	// getQualifiedName() already have the package@file@function as name, so methodName is not used here
+        	String pcgFileName = String.format(PCG_GRAPH_FILE_NAME_PATTERN, num, sourceFile, VerificationProperties.getGraphImageFileNameExtension());
             SaveUtil.saveGraph(new File(currentgotoGraphsOutputDirectory, pcgFileName), pcgGraph, markup).join();
         } catch (InterruptedException e) {}
             
@@ -139,7 +143,7 @@ public class LabelAnalyzer {
 			}
 			String prefix = parent.attr().get(XCSG.name).toString();
 			if(!prefix.equals("")){
-				result = parent.attr().get(XCSG.name) + "." + result;
+				result = parent.attr().get(XCSG.name) + "@" + result;
 			}
 			parent = getDeclarativeParent(parent);
 		}
