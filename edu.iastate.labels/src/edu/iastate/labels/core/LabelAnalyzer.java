@@ -10,11 +10,15 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 
 import com.ensoftcorp.atlas.core.db.graph.Graph;
 import com.ensoftcorp.atlas.core.db.graph.Node;
+import com.ensoftcorp.atlas.core.db.list.AtlasArrayList;
+import com.ensoftcorp.atlas.core.db.list.AtlasList;
 import com.ensoftcorp.atlas.core.db.set.AtlasHashSet;
 import com.ensoftcorp.atlas.core.db.set.AtlasSet;
 import com.ensoftcorp.atlas.core.index.common.SourceCorrespondence;
@@ -369,10 +373,41 @@ public class LabelAnalyzer {
 		new LabelAnalyzer().createDirectory();
 		
 		//		get all functions with labels
-		AtlasSet<Node> function_w_label = Common.universe().nodes(XCSG.Project).contained().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
+		AtlasSet<Node> labelFunctionSet = Common.universe().nodes(XCSG.Project).contained().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
+
+		// make a list so we can sort it
+		List<Node> labelFunctionList = new ArrayList<Node>();
+		
+		for(Node function: labelFunctionSet) {
+			labelFunctionList.add(function);
+		}
+		
+		// custom sort
+		Collections.sort(labelFunctionList,new Comparator<Node>() {
+            @Override
+            public int compare(Node n1, Node n2) {
+            	// sort with name first, then number of nodes, then edges
+                int value1 = n1.getAttr(XCSG.name).toString().compareTo(n2.getAttr(XCSG.name).toString());
+                if (value1 == 0) {
+                	Q cfgQ1 = CommonQueries.cfg(Common.toQ(n1));
+                	Q cfgQ2 = CommonQueries.cfg(Common.toQ(n2));
+                	int i1 = (int) cfgQ1.eval().nodes().size();
+                	int i2 = (int) cfgQ2.eval().nodes().size();
+                    int value2 = i2 - i1;
+                    if (value2 == 0) {
+                    	int i11 = (int) cfgQ1.eval().edges().size();
+                    	int i22 = (int) cfgQ2.eval().edges().size();
+                        return i22 - i11;
+                    } else {
+                        return value2;
+                    }
+                }
+                return value1;
+            }
+        });
 		
 		int num = 0;
-		for(Node function: function_w_label) {
+		for(Node function: labelFunctionList) {
 			num++;
 			Q cfg = CommonQueries.cfg(Common.toQ(function));
 			
@@ -395,12 +430,11 @@ public class LabelAnalyzer {
 			
 			// output PCG
 			Q nodeOfInterestQ = Common.toQ(label_set).union(Common.toQ(goto_set)).union(Common.toQ(return_set));
-			AtlasSet<Node> pcg_seed = cfg.nodes(XCSG.ControlFlowCondition).union(nodeOfInterestQ).eval().nodes();
+			AtlasSet<Node> pcg_seed = nodeOfInterestQ.eval().nodes(); //just interested in label and goto and return nodes
 			
 			Q pcg = PCGFactory.create(cfg, Common.toQ(pcg_seed)).getPCG();
 			saveDisplayPCG(pcg.eval(), num, sourceFile, methodName, markup, false);
-			
-			
+
 		}
 		
 	}
@@ -414,8 +448,39 @@ public class LabelAnalyzer {
 		//		get all functions with labels
 		AtlasSet<Node> functionSet = Common.universe().nodes(XCSG.Function).eval().nodes();
 		
-		int num = 0;
+		// make a list so we can sort it
+		List<Node> functionList = new ArrayList<Node>();
+		
 		for(Node function: functionSet) {
+			functionList.add(function);
+		}
+		
+		// custom sort
+		Collections.sort(functionList,new Comparator<Node>() {
+            @Override
+            public int compare(Node n1, Node n2) {
+            	// sort with name first, then number of nodes, then edges
+                int value1 = n1.getAttr(XCSG.name).toString().compareTo(n2.getAttr(XCSG.name).toString());
+                if (value1 == 0) {
+                	Q cfgQ1 = CommonQueries.cfg(Common.toQ(n1));
+                	Q cfgQ2 = CommonQueries.cfg(Common.toQ(n2));
+                	int i1 = (int) cfgQ1.eval().nodes().size();
+                	int i2 = (int) cfgQ2.eval().nodes().size();
+                    int value2 = i2 - i1;
+                    if (value2 == 0) {
+                    	int i11 = (int) cfgQ1.eval().edges().size();
+                    	int i22 = (int) cfgQ2.eval().edges().size();
+                        return i22 - i11;
+                    } else {
+                        return value2;
+                    }
+                }
+                return value1;
+            }
+        });
+		
+		int num = 0;
+		for(Node function: functionList) {
 			num++;
 			Q cfg = CommonQueries.cfg(Common.toQ(function));
 			
@@ -448,159 +513,90 @@ public class LabelAnalyzer {
 		
 	}
 	
-	public static void writeLabelStats(String filePath) throws IOException {
-		// Write statistics for different categories of labels
-			
-		// get saving directory
-		new LabelAnalyzer().createDirectory();
-		
-		if(Common.universe().nodes("NATURAL_LOOP").eval().nodes().size()<1) {
-			com.ensoftcorp.open.jimple.commons.loops.DecompiledLoopIdentification.recoverLoops();
-			Log.info("DLI Done");
-		}else {
-			Log.info("No need for DLI");
-		}
-		
-		FileWriter writer = new FileWriter(new File(filePath), true);
-		writer.write("Function_number, Function_name, Total_labels, Exit_control, Loop_creation, Error_exit, Redundant, Unreachable\n");
-		BufferedWriter br = new BufferedWriter(writer);
-		
-		//		get all functions with labels
-		AtlasSet<Node> function_w_label = Common.universe().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
-		
-		int num = 0;
-		for(Node function: function_w_label) {
-			num++;
-			
-			int exitCtrl = 0;
-			int loopCreate = 0;
-			int errorExit = 0;
-			int redundant = 0;
-			int unreachable = 0;
-			
-			//CFG/DAG
-			Q cfgQ = CommonQueries.cfg(Common.toQ(function));
-			Q cfbeQ=cfgQ.edges(XCSG.ControlFlowBackEdge).retainEdges(); //Control flow back edge
-			Q dagQ=cfgQ.differenceEdges(cfbeQ); // Control flow back edges removed
-			
-			//get map for loop children				
-			AtlasSet <Node> loopNodeSet = cfgQ.nodes(XCSG.Loop).eval().nodes();
-//			Map<Node, AtlasSet<Node>> loopChildMap = new HashMap<Node, AtlasSet<Node>>();
-						
-//			for(Node loopEntryNode : loopNodeSet) {
-				AtlasSet <Node> loopChildNodeSet = Common.universe().edges(XCSG.LoopChild).
-		        		forward(Common.toQ(loopNodeSet)).retainNodes().eval().nodes();
-//				loopChildMap.put(loopEntryNode, loopChildGotoNodeSet);
+//	public static void writeLabelStats_old(String filePath) throws IOException {
+//		// Write statistics for different categories of labels
+//			
+//		// get saving directory
+//		new LabelAnalyzer().createDirectory();
+//		
+//		if(Common.universe().nodes("NATURAL_LOOP").eval().nodes().size()<1) {
+//			com.ensoftcorp.open.jimple.commons.loops.DecompiledLoopIdentification.recoverLoops();
+//			Log.info("DLI Done");
+//		}else {
+//			Log.info("No need for DLI");
+//		}
+//		
+//		FileWriter writer = new FileWriter(new File(filePath), true);
+//		writer.write("Function_number, Function_name, Total_labels, Exit_control, Loop_creation, Error_exit, Redundant, Unreachable\n");
+//		BufferedWriter br = new BufferedWriter(writer);
+//		
+//		//		get all functions with labels
+//		AtlasSet<Node> function_w_label = Common.universe().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
+//		
+//		int num = 0;
+//		for(Node function: function_w_label) {
+//			num++;
+//			
+//			int exitCtrl = 0;
+//			int loopCreate = 0;
+//			int errorExit = 0;
+//			int redundant = 0;
+//			int unreachable = 0;
+//			
+//			//CFG/DAG
+//			Q cfgQ = CommonQueries.cfg(Common.toQ(function));
+//			Q cfbeQ=cfgQ.edges(XCSG.ControlFlowBackEdge).retainEdges(); //Control flow back edge
+//			Q dagQ=cfgQ.differenceEdges(cfbeQ); // Control flow back edges removed
+//			
+//			//get map for loop children				
+//			AtlasSet <Node> loopNodeSet = cfgQ.nodes(XCSG.Loop).eval().nodes();
+////			Map<Node, AtlasSet<Node>> loopChildMap = new HashMap<Node, AtlasSet<Node>>();
+//						
+////			for(Node loopEntryNode : loopNodeSet) {
+//				AtlasSet <Node> loopChildNodeSet = Common.universe().edges(XCSG.LoopChild).
+//		        		forward(Common.toQ(loopNodeSet)).retainNodes().eval().nodes();
+////				loopChildMap.put(loopEntryNode, loopChildGotoNodeSet);
+////			}
+//			
+//			//go through all labels
+//			AtlasSet<Node> labelSet = cfgQ.nodesTaggedWithAll("isLabel").eval().nodes();
+//			
+//			for(Node labelNode : labelSet) {
+//				AtlasSet<Node> predSet = dagQ.predecessors(Common.toQ(labelNode)).eval().nodes();
+//				
+//				//check flexible merge
+//				if(predSet.size()>1 && Common.toQ(labelNode).nodes(XCSG.Loop).eval().nodes().size()==0) {
+//					exitCtrl++;
+//				}
+//				
+//				//check loop creation
+//				if(Common.toQ(labelNode).nodes(XCSG.Loop).eval().nodes().size()>0) {
+//					loopCreate ++;
+//				}
+//				
+//				//check error exit
+//				//// Loop Child ends with breaks and GOTOs, so just check if the predecessor of the label is in any of the loop child GOTOs
+//				if(!loopChildNodeSet.contains(labelNode)&&Common.toQ(predSet).intersection(Common.toQ(loopChildNodeSet).nodes(XCSG.GotoStatement)).eval().nodes().size() > 0) {
+//					errorExit ++;
+//				}
+//				
+//				//check redundant
+//				AtlasSet<Node> labelBodySet = dagQ.forward(Common.toQ(labelNode)).difference(Common.toQ(labelNode)).eval().nodes();
+//				if(predSet.size()==1 && dagQ.predecessors(Common.toQ(labelBodySet)).eval().nodes().size()<2) {
+//					redundant ++;
+//				}
+//				
+//				//check unreachable
+//				if(predSet.size() == 0) {
+//					unreachable++;
+//				}
 //			}
-			
-			//go through all labels
-			AtlasSet<Node> labelSet = cfgQ.nodesTaggedWithAll("isLabel").eval().nodes();
-			
-			for(Node labelNode : labelSet) {
-				AtlasSet<Node> predSet = dagQ.predecessors(Common.toQ(labelNode)).eval().nodes();
-				
-				//check flexible merge
-				if(predSet.size()>1 && Common.toQ(labelNode).nodes(XCSG.Loop).eval().nodes().size()==0) {
-					exitCtrl++;
-				}
-				
-				//check loop creation
-				if(Common.toQ(labelNode).nodes(XCSG.Loop).eval().nodes().size()>0) {
-					loopCreate ++;
-				}
-				
-				//check error exit
-				//// Loop Child ends with breaks and GOTOs, so just check if the predecessor of the label is in any of the loop child GOTOs
-				if(!loopChildNodeSet.contains(labelNode)&&Common.toQ(predSet).intersection(Common.toQ(loopChildNodeSet).nodes(XCSG.GotoStatement)).eval().nodes().size() > 0) {
-					errorExit ++;
-				}
-				
-				//check redundant
-				AtlasSet<Node> labelBodySet = dagQ.forward(Common.toQ(labelNode)).difference(Common.toQ(labelNode)).eval().nodes();
-				if(predSet.size()==1 && dagQ.predecessors(Common.toQ(labelBodySet)).eval().nodes().size()<2) {
-					redundant ++;
-				}
-				
-				//check unreachable
-				if(predSet.size() == 0) {
-					unreachable++;
-				}
-			}
-			br.write(num + "," + function.getAttr(XCSG.name).toString() + "," + labelSet.size() + "," + exitCtrl + "," + loopCreate + "," + errorExit + "," + redundant + "," + unreachable + "\n");
-			br.flush();	
-			
-		}
-		writer.close();
-	}
-	
-	
-	private static Set<Integer> writeLabelStatsNewHelper(int flag, Q cfgQ, Q dagQ, Node labelNode, AtlasSet<Node> predSetDag, AtlasSet <Node> loopChildNodeSet) {
-		// input label flag: -2, -1 (miscellaneous), 0 (no entry), 1 (single entry), 2 (multiple entry)
-		// output: -1 (error), 0 (Unreachable), 1 (Loop Creation), 2 (Flexible Merge), 3 (Flexible loop exit), 4 (Redundant)
-		Set<Integer> result = new HashSet<Integer>();
-		
-		if(flag < 0) {
-			result.add(-1);
-			return result;
-		}else if(flag == 0) {
-			result.add(0);
-			return result;
-		}
-		
-		if(flag == 2) { // multiple entry label
-			if(labelNode.taggedWith(XCSG.Loop) && (cfgQ.predecessors(Common.toQ(labelNode)).nodes(XCSG.GotoStatement).intersection(Common.toQ(loopChildNodeSet))).eval().nodes().size() > 0) {
-				// label tagged with XCSG.Loop AND at least one of its GOTOs is loop child
-				result.add(1); // loop creation
-			}else if(!labelNode.taggedWith(XCSG.Loop) && Common.toQ(predSetDag).difference(Common.toQ(loopChildNodeSet)).eval().nodes().size() > 0){
-				// if not loop, AND merge, AND not all predecessors come from loop body
-				result.add(2); // flexible merge
-			}
-			
-			// flexible loop exit
-			if(!loopChildNodeSet.contains(labelNode)&&Common.toQ(predSetDag).intersection(Common.toQ(loopChildNodeSet).nodes(XCSG.GotoStatement)).eval().nodes().size() > 0) {
-				result.add(3);
-			}
-			
-		}else if(flag == 1) {  // single entry label
-			
-			// flexible loop exit
-			if(!loopChildNodeSet.contains(labelNode)&&Common.toQ(predSetDag).intersection(Common.toQ(loopChildNodeSet).nodes(XCSG.GotoStatement)).eval().nodes().size() > 0) {
-				result.add(3);
-			}
-			
-			// redundant check
-			AtlasSet<Node> labelBodySet = dagQ.forward(Common.toQ(labelNode)).eval().nodes();
-			AtlasSet<Node> labelBodyEntryPredSet = dagQ.predecessors(Common.toQ(labelBodySet)).difference(Common.toQ(labelBodySet)).eval().nodes();
-			if(labelBodyEntryPredSet.size()<2 && !result.contains(3)) {
-				// if no other entry to the label module, AND not loop exit, it is redundant. 
-				result.add(4);;
-			}
-			
-			// flexible merge entry node check
-			AtlasSet<Node> labelBodyEntrySet = dagQ.successors(Common.toQ(labelBodyEntryPredSet)).intersection(Common.toQ(labelBodySet)).eval().nodes();
-			int lbeFlag = 0;
-			if(labelBodyEntrySet.size() < 2) {
-				lbeFlag = 1;
-			}else {
-				for(Node lbe : labelBodyEntrySet) {
-					if(!lbe.taggedWith("isLabel")) {
-						lbeFlag = 1;
-						break;
-					}
-				}
-			}
-			if(lbeFlag == 0) {
-				result.add(2);;
-			}
-			
-		}
-		
-		if(result.size() == 0) {
-			result.add(-1);
-		}
-		
-		return result;
-	}
+//			br.write(num + "," + function.getAttr(XCSG.name).toString() + "," + labelSet.size() + "," + exitCtrl + "," + loopCreate + "," + errorExit + "," + redundant + "," + unreachable + "\n");
+//			br.flush();	
+//			
+//		}
+//		writer.close();
+//	}
 	
 	private static void tagLabelCategoryNewHelper(int flag, Q cfgQ, Q dagQ, Node labelNode, AtlasSet<Node> predSetDag, AtlasSet <Node> loopChildNodeSet) {
 		// input label flag: -2, -1 (miscellaneous), 0 (no entry), 1 (single entry), 2 (multiple entry)
@@ -752,6 +748,7 @@ public class LabelAnalyzer {
 		
 	}
 	
+	
 	public static void writeLabelCategoryByFunc(String filePath) throws IOException {
 		
 		final String MISC = "CATEGORY_Misc";
@@ -779,8 +776,39 @@ public class LabelAnalyzer {
 //		get all functions with labels
 		AtlasSet<Node> labelFunctionSet = Common.universe().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
 		
-		int num = 0;
+		// make a list so we can sort it
+		List<Node> labelFunctionList = new ArrayList<Node>();
+		
 		for(Node function: labelFunctionSet) {
+			labelFunctionList.add(function);
+		}
+		
+		// custom sort
+		Collections.sort(labelFunctionList,new Comparator<Node>() {
+            @Override
+            public int compare(Node n1, Node n2) {
+            	// sort with name first, then number of nodes, then edges
+                int value1 = n1.getAttr(XCSG.name).toString().compareTo(n2.getAttr(XCSG.name).toString());
+                if (value1 == 0) {
+                	Q cfgQ1 = CommonQueries.cfg(Common.toQ(n1));
+                	Q cfgQ2 = CommonQueries.cfg(Common.toQ(n2));
+                	int i1 = (int) cfgQ1.eval().nodes().size();
+                	int i2 = (int) cfgQ2.eval().nodes().size();
+                    int value2 = i2 - i1;
+                    if (value2 == 0) {
+                    	int i11 = (int) cfgQ1.eval().edges().size();
+                    	int i22 = (int) cfgQ2.eval().edges().size();
+                        return i22 - i11;
+                    } else {
+                        return value2;
+                    }
+                }
+                return value1;
+            }
+        });
+		
+		int num = 0;
+		for(Node function: labelFunctionList) { //the order is now sorted
 			num++;
 			//CFG/DAG
 			Q cfgQ = CommonQueries.cfg(Common.toQ(function));
@@ -852,8 +880,39 @@ public static void writeLabelCategoryByLabel(String filePath) throws IOException
 		//	get all functions with labels
 		AtlasSet<Node> labelFunctionSet = Common.universe().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
 		
-		int numFunc = 0;
+		// make a list so we can sort it
+		List<Node> labelFunctionList = new ArrayList<Node>();
+		
 		for(Node function: labelFunctionSet) {
+			labelFunctionList.add(function);
+		}
+		
+		// custom sort
+		Collections.sort(labelFunctionList,new Comparator<Node>() {
+            @Override
+            public int compare(Node n1, Node n2) {
+            	// sort with name first, then number of nodes, then edges
+                int value1 = n1.getAttr(XCSG.name).toString().compareTo(n2.getAttr(XCSG.name).toString());
+                if (value1 == 0) {
+                	Q cfgQ1 = CommonQueries.cfg(Common.toQ(n1));
+                	Q cfgQ2 = CommonQueries.cfg(Common.toQ(n2));
+                	int i1 = (int) cfgQ1.eval().nodes().size();
+                	int i2 = (int) cfgQ2.eval().nodes().size();
+                    int value2 = i2 - i1;
+                    if (value2 == 0) {
+                    	int i11 = (int) cfgQ1.eval().edges().size();
+                    	int i22 = (int) cfgQ2.eval().edges().size();
+                        return i22 - i11;
+                    } else {
+                        return value2;
+                    }
+                }
+                return value1;
+            }
+        });
+		
+		int numFunc = 0;
+		for(Node function: labelFunctionList) {
 			numFunc++;
 			//CFG/DAG
 			Q cfgQ = CommonQueries.cfg(Common.toQ(function));
@@ -922,8 +981,39 @@ public static void writeLabelCategoryByLabel(String filePath) throws IOException
 		//		get all functions with labels
 		AtlasSet<Node> function_w_label = Common.universe().nodes(XCSG.Project).contained().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
 		
-		int num = 0;
+		// make a list so we can sort it
+		List<Node> labelFunctionList = new ArrayList<Node>();
+		
 		for(Node function: function_w_label) {
+			labelFunctionList.add(function);
+		}
+		
+		// custom sort
+		Collections.sort(labelFunctionList,new Comparator<Node>() {
+            @Override
+            public int compare(Node n1, Node n2) {
+            	// sort with name first, then number of nodes, then edges
+                int value1 = n1.getAttr(XCSG.name).toString().compareTo(n2.getAttr(XCSG.name).toString());
+                if (value1 == 0) {
+                	Q cfgQ1 = CommonQueries.cfg(Common.toQ(n1));
+                	Q cfgQ2 = CommonQueries.cfg(Common.toQ(n2));
+                	int i1 = (int) cfgQ1.eval().nodes().size();
+                	int i2 = (int) cfgQ2.eval().nodes().size();
+                    int value2 = i2 - i1;
+                    if (value2 == 0) {
+                    	int i11 = (int) cfgQ1.eval().edges().size();
+                    	int i22 = (int) cfgQ2.eval().edges().size();
+                        return i22 - i11;
+                    } else {
+                        return value2;
+                    }
+                }
+                return value1;
+            }
+        });
+		
+		int num = 0;
+		for(Node function: labelFunctionList) {
 			num++;
 			
 			//CFG/DAG
@@ -969,9 +1059,40 @@ public static void writeLabelCategoryByLabel(String filePath) throws IOException
 		
 		//		get all functions with labels
 		AtlasSet<Node> function_w_label = Common.universe().nodes(XCSG.Project).contained().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
+
+		// make a list so we can sort it
+		List<Node> labelFunctionList = new ArrayList<Node>();
+		
+		for(Node function: function_w_label) {
+			labelFunctionList.add(function);
+		}
+		
+		// custom sort
+		Collections.sort(labelFunctionList,new Comparator<Node>() {
+            @Override
+            public int compare(Node n1, Node n2) {
+            	// sort with name first, then number of nodes, then edges
+                int value1 = n1.getAttr(XCSG.name).toString().compareTo(n2.getAttr(XCSG.name).toString());
+                if (value1 == 0) {
+                	Q cfgQ1 = CommonQueries.cfg(Common.toQ(n1));
+                	Q cfgQ2 = CommonQueries.cfg(Common.toQ(n2));
+                	int i1 = (int) cfgQ1.eval().nodes().size();
+                	int i2 = (int) cfgQ2.eval().nodes().size();
+                    int value2 = i2 - i1;
+                    if (value2 == 0) {
+                    	int i11 = (int) cfgQ1.eval().edges().size();
+                    	int i22 = (int) cfgQ2.eval().edges().size();
+                        return i22 - i11;
+                    } else {
+                        return value2;
+                    }
+                }
+                return value1;
+            }
+        });
 		
 		int num = 0;
-		for(Node function: function_w_label) {
+		for(Node function: labelFunctionList) {
 			num++;
 			Q cfgQ = CommonQueries.cfg(Common.toQ(function));
 			Q cfbeQ=cfgQ.edges(XCSG.ControlFlowBackEdge).retainEdges(); //Control flow back edge
