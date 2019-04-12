@@ -975,7 +975,7 @@ public static void writeLabelCategoryByLabel(String filePath) throws IOException
 		}
 		
 		FileWriter writer = new FileWriter(new File(filePath), true);
-		writer.write("Function_number, Function_name, nodes_CFG, edges_CFG, gotos, labels, CtrlBlks, nodes_PCG, edges_PCG\n");
+		writer.write("Function_number, Function_name, nodes_CFG, edges_CFG, CtrlBlks_CFG, gotos, labels, nodes_PCG, edges_PCG, CtrlBlks_PCG\n");
 		BufferedWriter br = new BufferedWriter(writer);
 		
 		//		get all functions with labels
@@ -1033,17 +1033,18 @@ public static void writeLabelCategoryByLabel(String filePath) throws IOException
 			AtlasSet<Node> gotoSet = cfgQ.nodes(XCSG.GotoStatement).eval().nodes();
 			AtlasSet<Node> labelSet = cfgQ.nodes("isLabel").eval().nodes();
 			AtlasSet<Node> cbEntrySet = cfgQ.nodesTaggedWithAny(XCSG.ControlFlowCondition, XCSG.Loop).eval().nodes();
+			AtlasSet<Node> cbEntrySetPCG = pcgQ.nodesTaggedWithAny(XCSG.ControlFlowCondition, XCSG.Loop).eval().nodes();
 			
 			long nodes_CFG = cfgQ.eval().nodes().size();
 			long edges_CFG = cfgQ.eval().edges().size();
+			long CtrlBlks_CFG = cbEntrySet.size();
 			long gotos = gotoSet.size();
 			long labels = labelSet.size();
-			long CtrlBlks = cbEntrySet.size();
 			long nodes_PCG = pcgQ.eval().nodes().size();
 			long edges_PCG = pcgQ.eval().edges().size();
+			long CtrlBlks_PCG = cbEntrySetPCG.size();
 			
-			
-			br.write(num + "," + function.getAttr(XCSG.name).toString() + "," + nodes_CFG + "," + edges_CFG + "," + gotos + "," + labels + "," + CtrlBlks + "," + nodes_PCG + "," + edges_PCG + "\n");
+			br.write(num + "," + function.getAttr(XCSG.name).toString() + "," + nodes_CFG + "," + edges_CFG + "," + CtrlBlks_CFG + "," + gotos + "," + labels + "," + nodes_PCG + "," + edges_PCG + "," + CtrlBlks_PCG + "\n");
 			br.flush();	
 			
 		}
