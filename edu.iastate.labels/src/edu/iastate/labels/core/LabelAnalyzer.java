@@ -1027,7 +1027,7 @@ public static void writeLabelCategoryByLabel(String filePath) throws IOException
 			AtlasSet<Node> return_set = cfgQ.nodes(XCSG.controlFlowExitPoint).eval().nodes();
 			
 			Q nodeOfInterestQ = Common.toQ(label_set).union(Common.toQ(goto_set)).union(Common.toQ(return_set));
-			AtlasSet<Node> pcg_seed = cfgQ.nodes(XCSG.ControlFlowCondition).union(nodeOfInterestQ).eval().nodes();
+			AtlasSet<Node> pcg_seed = nodeOfInterestQ.eval().nodes();
 			Q pcgQ = PCGFactory.create(cfgQ, Common.toQ(pcg_seed)).getPCG();
 			
 			AtlasSet<Node> gotoSet = cfgQ.nodes(XCSG.GotoStatement).eval().nodes();
