@@ -249,7 +249,7 @@ public class LabelAnalyzer {
 		com.ensoftcorp.open.jimple.commons.loops.DecompiledLoopIdentification.recoverLoops();
 		
 		//		get all functions with labels
-		AtlasSet<Node> function_w_label = Common.universe().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
+		AtlasSet<Node> function_w_label = Common.universe().nodesTaggedWithAll("isLabel").parent().nodes(XCSG.Function).eval().nodes();
 		
 		int num = 0;
 		FileWriter writer = new FileWriter(file);
@@ -295,7 +295,7 @@ public class LabelAnalyzer {
 		new LabelAnalyzer().createDirectory();
 		
 		//		get all functions with labels
-		AtlasSet<Node> function_w_label = Common.universe().nodes(XCSG.Project).contained().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
+		AtlasSet<Node> function_w_label = Common.universe().nodesTaggedWithAll("isLabel").parent().nodes(XCSG.Function).eval().nodes();
 		
 		int num = 0;
 		for(Node function: function_w_label) {
@@ -323,7 +323,7 @@ public class LabelAnalyzer {
 	
 	public static void calcGoto() {
 		
-		AtlasSet<Node> function_w_label = Common.universe().nodes(XCSG.Project).contained().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
+		AtlasSet<Node> function_w_label = Common.universe().nodesTaggedWithAll("isLabel").parent().nodes(XCSG.Function).eval().nodes();
 		
 		for(Node function: function_w_label) {
 			Q cfg = CommonQueries.cfg(Common.toQ(function));
@@ -343,7 +343,7 @@ public class LabelAnalyzer {
 		writer.write("function_name, label_node, goto_count, predecessor_count\n");
 		BufferedWriter br = new BufferedWriter(writer);
 		
-		AtlasSet<Node> function_w_label = Common.universe().nodes(XCSG.Project).contained().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
+		AtlasSet<Node> function_w_label = Common.universe().nodesTaggedWithAll("isLabel").parent().nodes(XCSG.Function).eval().nodes();
 		
 		for(Node function: function_w_label) {
 			Q cfg = CommonQueries.cfg(Common.toQ(function));
@@ -373,7 +373,7 @@ public class LabelAnalyzer {
 		new LabelAnalyzer().createDirectory();
 		
 		//		get all functions with labels
-		AtlasSet<Node> labelFunctionSet = Common.universe().nodes(XCSG.Project).contained().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
+		AtlasSet<Node> labelFunctionSet = Common.universe().nodesTaggedWithAll("isLabel").parent().nodes(XCSG.Function).eval().nodes();
 
 		// make a list so we can sort it
 		List<Node> labelFunctionList = new ArrayList<Node>();
@@ -531,7 +531,7 @@ public class LabelAnalyzer {
 //		BufferedWriter br = new BufferedWriter(writer);
 //		
 //		//		get all functions with labels
-//		AtlasSet<Node> function_w_label = Common.universe().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
+//		AtlasSet<Node> function_w_label = Common.universe().nodesTaggedWithAll("isLabel").parent().nodes(XCSG.Function).eval().nodes();
 //		
 //		int num = 0;
 //		for(Node function: function_w_label) {
@@ -697,7 +697,7 @@ public class LabelAnalyzer {
 		}
 		
 		// get all functions with labels
-		AtlasSet<Node> labelFunctionSet = Common.universe().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
+		AtlasSet<Node> labelFunctionSet = Common.universe().nodesTaggedWithAll("isLabel").parent().nodes(XCSG.Function).eval().nodes();
 		
 		
 		AtlasSet<Node> unreachableSet = new AtlasHashSet<Node>();
@@ -774,7 +774,7 @@ public class LabelAnalyzer {
 		BufferedWriter br = new BufferedWriter(writer);
 		
 //		get all functions with labels
-		AtlasSet<Node> labelFunctionSet = Common.universe().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
+		AtlasSet<Node> labelFunctionSet = Common.universe().nodesTaggedWithAll("isLabel").parent().nodes(XCSG.Function).eval().nodes();
 		
 		// make a list so we can sort it
 		List<Node> labelFunctionList = new ArrayList<Node>();
@@ -878,7 +878,7 @@ public static void writeLabelCategoryByLabel(String filePath) throws IOException
 		BufferedWriter br = new BufferedWriter(writer);
 		
 		//	get all functions with labels
-		AtlasSet<Node> labelFunctionSet = Common.universe().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
+		AtlasSet<Node> labelFunctionSet = Common.universe().nodesTaggedWithAll("isLabel").parent().nodes(XCSG.Function).eval().nodes();
 		
 		// make a list so we can sort it
 		List<Node> labelFunctionList = new ArrayList<Node>();
@@ -979,7 +979,7 @@ public static void writeLabelCategoryByLabel(String filePath) throws IOException
 		BufferedWriter br = new BufferedWriter(writer);
 		
 		//		get all functions with labels
-		AtlasSet<Node> function_w_label = Common.universe().nodes(XCSG.Project).contained().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
+		AtlasSet<Node> function_w_label = Common.universe().nodes("isLabel").parent().nodes(XCSG.Function).eval().nodes();
 		
 		// make a list so we can sort it
 		List<Node> labelFunctionList = new ArrayList<Node>();
@@ -1058,7 +1058,7 @@ public static void writeLabelCategoryByLabel(String filePath) throws IOException
 		new LabelAnalyzer().createDirectory();
 		
 		//		get all functions with labels
-		AtlasSet<Node> function_w_label = Common.universe().nodes(XCSG.Project).contained().nodesTaggedWithAll("isLabel").containers().nodes(XCSG.Function).eval().nodes();
+		AtlasSet<Node> function_w_label = Common.universe().nodesTaggedWithAll("isLabel").parent().nodes(XCSG.Function).eval().nodes();
 
 		// make a list so we can sort it
 		List<Node> labelFunctionList = new ArrayList<Node>();
