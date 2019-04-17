@@ -1149,5 +1149,58 @@ public static void writeLabelCategoryByLabel(String filePath) throws IOException
 		}
 		
 	}
+	
+	public static void writeSpecialLoopAndHalf() {
+		// This is an algorithm retrieving all non-entry While, do-while, for loops caused by label-in-the-loop use of goto
+		
+		GOTO_GRAPH_DIRECTORY_NAME_PATTERN = "writeSpecialLoopAndHalf";
+		
+		// get saving directory
+		new LabelAnalyzer().createDirectory();
+		
+		// run DLI
+		if(Common.universe().nodes("NATURAL_LOOP").eval().nodes().size()<1) {
+			com.ensoftcorp.open.jimple.commons.loops.DecompiledLoopIdentification.recoverLoops();
+			Log.info("DLI Done");
+		}else {
+			Log.info("No need for DLI");
+		}
+		
+		// get all functions with label-entry loops
+		AtlasSet<Node> labelFunctionSet = Common.universe().nodesTaggedWithAll("isLabel", XCSG.Loop).parent().nodes(XCSG.Function).eval().nodes();
+		
+		int num=0;
+		for(Node function: labelFunctionSet) {
+			
+			//CFG/DAG
+			Q cfgQ = CommonQueries.cfg(Common.toQ(function));
+			Q cfbeQ=cfgQ.edges(XCSG.ControlFlowBackEdge).retainEdges(); //Control flow back edge
+			Q dagQ=cfgQ.differenceEdges(cfbeQ); // Control flow back edges removed
+			
+			//get map for loop children				
+			AtlasSet<Node> loopNodeSet = cfgQ.nodes(XCSG.Loop).eval().nodes();
+			
+			AtlasSet<Node> loopChildNodeSet = Common.universe().edges(XCSG.LoopChild).
+		        forward(Common.toQ(loopNodeSet)).retainNodes().eval().nodes();
+			
+			AtlasSet<Node> branchLoopHeaderSet = 
+					Common.toQ(loopChildNodeSet).difference(Common.toQ(loopChildNodeSet).nodes(XCSG.Loop))
+						.nodes(XCSG.ControlFlowLoopCondition).eval().nodes();
+			
+			if(branchLoopHeaderSet.size()>0) {
+				num++;
+				Markup markup = new Markup();
+				markup.set(cfgQ.nodes(XCSG.GotoStatement), MarkupProperty.NODE_BACKGROUND_COLOR, Color.RED);
+				markup.set(cfgQ.nodes("isLabel"), MarkupProperty.NODE_BACKGROUND_COLOR, Color.YELLOW);
+				markup.set(cfgQ.nodes(XCSG.controlFlowExitPoint), MarkupProperty.NODE_BACKGROUND_COLOR, Color.MAGENTA);
+				// set file name
+				String sourceFile = getQualifiedFunctionName(function);
+				String methodName =  function.getAttr(XCSG.name).toString();
+				
+				// output CFG
+				saveDisplayCFG(cfgQ.eval(), num, sourceFile, methodName, markup, false);
+			}
+		}		
+	}
 
 }
