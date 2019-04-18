@@ -1174,34 +1174,29 @@ public static void writeLabelCategoryByLabel(String filePath) throws IOException
 			
 			//CFG/DAG
 			Q cfgQ = CommonQueries.cfg(Common.toQ(function));
-//			Q cfbeQ=cfgQ.edges(XCSG.ControlFlowBackEdge).retainEdges(); //Control flow back edge
-//			Q dagQ=cfgQ.differenceEdges(cfbeQ); // Control flow back edges removed
+
+			// Do node set
+			Q doNodeQ = cfgQ.nodes(XCSG.DoWhileLoop);
 			
-			//get map for loop children				
-			AtlasSet<Node> loopNodeSet = cfgQ.nodes(XCSG.Loop).eval().nodes();
-			
-			AtlasSet<Node> loopChildNodeSet = Common.universe().edges(XCSG.LoopChild).
-		        forward(Common.toQ(loopNodeSet)).retainNodes().eval().nodes();
-			
-			AtlasSet<Node> branchLoopHeaderSet = 
-					Common.toQ(loopChildNodeSet).difference(Common.toQ(loopChildNodeSet).nodes(XCSG.Loop))
-					//exclude do while(0) statements to avoid false positives
-					 	.difference(CommonQueries.nodesStartingWith(Common.toQ(loopChildNodeSet), "do while (0)"))
-						.nodes(XCSG.ControlFlowLoopCondition).eval().nodes();
-			
-			if(branchLoopHeaderSet.size()>0) {
-				num++;
-				Markup markup = new Markup();
-				markup.set(cfgQ.nodes(XCSG.GotoStatement), MarkupProperty.NODE_BACKGROUND_COLOR, Color.RED);
-				markup.set(cfgQ.nodes("isLabel"), MarkupProperty.NODE_BACKGROUND_COLOR, Color.YELLOW);
-				markup.set(cfgQ.nodes(XCSG.controlFlowExitPoint), MarkupProperty.NODE_BACKGROUND_COLOR, Color.MAGENTA);
-				// set file name
-				String sourceFile = getQualifiedFunctionName(function);
-				String methodName =  function.getAttr(XCSG.name).toString();
-				
-				// output CFG
-				saveDisplayCFG(cfgQ.eval(), num, sourceFile, methodName, markup, false);
+			for(Node doNode : doNodeQ.eval().nodes()) {
+				// we need to check if there is a Do node which has only one incoming edge
+				if(cfgQ.predecessors(Common.toQ(doNode)).eval().nodes().size() == 1) {
+					num++;
+					Markup markup = new Markup();
+					markup.set(cfgQ.predecessors(cfgQ.nodes("isLabel", XCSG.Loop)).nodes(XCSG.GotoStatement), MarkupProperty.NODE_BACKGROUND_COLOR, Color.RED);
+					markup.set(cfgQ.nodes("isLabel", XCSG.Loop), MarkupProperty.NODE_BACKGROUND_COLOR, Color.YELLOW);
+					markup.set(cfgQ.nodes(XCSG.controlFlowExitPoint), MarkupProperty.NODE_BACKGROUND_COLOR, Color.MAGENTA);
+					markup.set(Common.toQ(doNode), MarkupProperty.NODE_BACKGROUND_COLOR, Color.ORANGE);
+					// set file name
+					String sourceFile = getQualifiedFunctionName(function);
+					String methodName =  function.getAttr(XCSG.name).toString();
+					
+					// output CFG
+					saveDisplayCFG(cfgQ.eval(), num, sourceFile, methodName, markup, false);
+					break;
+				}
 			}
+		
 		}		
 	}
 
