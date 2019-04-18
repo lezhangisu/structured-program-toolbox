@@ -1174,8 +1174,8 @@ public static void writeLabelCategoryByLabel(String filePath) throws IOException
 			
 			//CFG/DAG
 			Q cfgQ = CommonQueries.cfg(Common.toQ(function));
-			Q cfbeQ=cfgQ.edges(XCSG.ControlFlowBackEdge).retainEdges(); //Control flow back edge
-			Q dagQ=cfgQ.differenceEdges(cfbeQ); // Control flow back edges removed
+//			Q cfbeQ=cfgQ.edges(XCSG.ControlFlowBackEdge).retainEdges(); //Control flow back edge
+//			Q dagQ=cfgQ.differenceEdges(cfbeQ); // Control flow back edges removed
 			
 			//get map for loop children				
 			AtlasSet<Node> loopNodeSet = cfgQ.nodes(XCSG.Loop).eval().nodes();
@@ -1185,6 +1185,8 @@ public static void writeLabelCategoryByLabel(String filePath) throws IOException
 			
 			AtlasSet<Node> branchLoopHeaderSet = 
 					Common.toQ(loopChildNodeSet).difference(Common.toQ(loopChildNodeSet).nodes(XCSG.Loop))
+					//exclude do while(0) statements to avoid false positives
+					 	.difference(CommonQueries.nodesStartingWith(Common.toQ(loopChildNodeSet), "do while (0)"))
 						.nodes(XCSG.ControlFlowLoopCondition).eval().nodes();
 			
 			if(branchLoopHeaderSet.size()>0) {
